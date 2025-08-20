@@ -445,13 +445,31 @@ const Dashboard = () => {
     }
   };
 
-  const fetchUserReports = async () => {
+  const fetchAnalytics = async () => {
     try {
-      const response = await axios.get(`${API}/reports`);
-      setReports(response.data);
+      const response = await axios.get(`${API}/admin/analytics`);
+      setAnalytics(response.data);
     } catch (error) {
-      console.error('Failed to fetch user reports:', error);
-      setError('Failed to fetch reports');
+      console.error('Failed to fetch analytics:', error);
+    }
+  };
+
+  const fetchDynamicFields = async () => {
+    try {
+      const response = await axios.get(`${API}/admin/dynamic-fields`);
+      setDynamicFields(response.data);
+    } catch (error) {
+      console.error('Failed to fetch dynamic fields:', error);
+      setError('Failed to fetch dynamic fields');
+    }
+  };
+
+  const fetchFieldSections = async () => {
+    try {
+      const response = await axios.get(`${API}/admin/dynamic-fields/sections`);
+      setFieldSections(response.data.sections);
+    } catch (error) {
+      console.error('Failed to fetch field sections:', error);
     }
   };
 
