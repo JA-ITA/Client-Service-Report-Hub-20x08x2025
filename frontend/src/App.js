@@ -564,8 +564,56 @@ const Dashboard = () => {
     }
   };
 
-  // Report management functions
-  const submitReport = async (templateId, reportPeriod, data, status = 'draft') => {
+  // Dynamic field management functions
+  const createDynamicField = async () => {
+    if (!newFieldData.section || !newFieldData.label || !newFieldData.field_type) {
+      setError('Please fill in all required fields');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await axios.post(`${API}/admin/dynamic-fields`, newFieldData);
+      setNewFieldData({
+        section: '',
+        label: '',
+        field_type: 'text',
+        choices: [],
+        placeholder: '',
+        help_text: ''
+      });
+      setShowFieldManager(false);
+      fetchDynamicFields();
+      fetchFieldSections();
+    } catch (error) {
+      console.error('Failed to create dynamic field:', error);
+      setError(error.response?.data?.detail || 'Failed to create dynamic field');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteDynamicField = async (fieldId, fieldLabel) => {
+    if (window.confirm(`Are you sure you want to delete field "${fieldLabel}"? This action can be undone.`)) {
+      try {
+        await axios.delete(`${API}/admin/dynamic-fields/${fieldId}`);
+        fetchDynamicFields();
+      } catch (error) {
+        console.error('Failed to delete dynamic field:', error);
+        setError(error.response?.data?.detail || 'Failed to delete dynamic field');
+      }
+    }
+  };
+
+  const restoreDynamicField = async (fieldId) => {
+    try {
+      await axios.post(`${API}/admin/dynamic-fields/${fieldId}/restore`);
+      fetchDynamicFields();
+    } catch (error) {
+      console.error('Failed to restore dynamic field:', error);
+      setError(error.response?.data?.detail || 'Failed to restore dynamic field');
+    }
+  };
     setLoading(true);
     try {
       await axios.post(`${API}/reports`, {
