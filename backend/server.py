@@ -82,12 +82,45 @@ class UserResponse(BaseModel):
     approved: bool
     created_at: datetime
 
-# New Stage 3 Models - Dynamic Reporting
+# Enhanced Stage 3 Models - Dynamic Reporting System
+class DynamicField(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    section: str  # Category/section for grouping fields (e.g., "Personal Info", "Project Details")
+    label: str  # Display name for the field
+    field_type: str  # text, number, date, dropdown, multiselect, textarea, file, checkbox
+    choices: Optional[List[str]] = None  # For dropdown/multiselect fields
+    validation: Optional[dict] = None  # Validation rules (min, max, pattern, etc.)
+    placeholder: Optional[str] = None
+    help_text: Optional[str] = None  # Additional guidance for users
+    deleted: bool = False  # Soft delete functionality
+    created_by: str  # Admin user ID who created this field
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class DynamicFieldCreate(BaseModel):
+    section: str
+    label: str
+    field_type: str
+    choices: Optional[List[str]] = None
+    validation: Optional[dict] = None
+    placeholder: Optional[str] = None
+    help_text: Optional[str] = None
+
+class DynamicFieldUpdate(BaseModel):
+    section: Optional[str] = None
+    label: Optional[str] = None
+    field_type: Optional[str] = None
+    choices: Optional[List[str]] = None
+    validation: Optional[dict] = None
+    placeholder: Optional[str] = None
+    help_text: Optional[str] = None
+    deleted: Optional[bool] = None
+
 class ReportField(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
     label: str
-    field_type: str  # text, number, date, dropdown, checkbox, textarea
+    field_type: str  # text, number, date, dropdown, checkbox, textarea, multiselect, file
     required: bool = False
     options: Optional[List[str]] = None  # For dropdown fields
     placeholder: Optional[str] = None
