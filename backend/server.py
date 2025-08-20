@@ -137,6 +137,42 @@ class ReportFieldCreate(BaseModel):
     validation: Optional[dict] = None
     order: int = 0
 
+class ReportTemplateEnhanced(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    description: str
+    category: str = "General"  # Category for organizing templates
+    fields: List[ReportField] = []
+    dynamic_field_ids: List[str] = []  # References to DynamicField IDs
+    active: bool = True
+    created_by: str  # Admin user ID
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ReportTemplateCreateEnhanced(BaseModel):
+    name: str
+    description: str
+    category: str = "General"
+    fields: List[ReportFieldCreate] = []
+    dynamic_field_ids: List[str] = []  # IDs of DynamicFields to include
+
+class ReportSubmissionEnhanced(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    template_id: str
+    user_id: str
+    location_id: Optional[str] = None
+    report_period: str  # Format: "2025-01" for January 2025
+    data: dict  # Dynamic field data
+    status: str = "draft"  # draft, submitted, reviewed, approved, rejected
+    submitted_at: Optional[datetime] = None
+    reviewed_at: Optional[datetime] = None
+    reviewed_by: Optional[str] = None  # Admin user ID who reviewed
+    review_notes: Optional[str] = None
+    attachments: List[str] = []  # File paths for uploaded files
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+# Keep original models for backward compatibility
 class ReportTemplate(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
