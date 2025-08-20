@@ -352,15 +352,28 @@ const Dashboard = () => {
   const [users, setUsers] = useState([]);
   const [locations, setLocations] = useState([]);
   const [stats, setStats] = useState({});
+  const [analytics, setAnalytics] = useState({});
   const [reportTemplates, setReportTemplates] = useState([]);
   const [reports, setReports] = useState([]);
+  const [dynamicFields, setDynamicFields] = useState([]);
+  const [fieldSections, setFieldSections] = useState([]);
   const [editingLocation, setEditingLocation] = useState(null);
   const [newLocationName, setNewLocationName] = useState('');
   const [showAddLocation, setShowAddLocation] = useState(false);
   const [showTemplateBuilder, setShowTemplateBuilder] = useState(false);
+  const [showFieldManager, setShowFieldManager] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState(null);
+  const [editingField, setEditingField] = useState(null);
   const [selectedReport, setSelectedReport] = useState(null);
   const [reportFormData, setReportFormData] = useState({});
+  const [newFieldData, setNewFieldData] = useState({
+    section: '',
+    label: '',
+    field_type: 'text',
+    choices: [],
+    placeholder: '',
+    help_text: ''
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
