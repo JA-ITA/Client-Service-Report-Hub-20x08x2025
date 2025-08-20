@@ -1173,6 +1173,366 @@ async def get_report(report_id: str, current_user: User = Depends(get_current_us
         location_name=location_name
     )
 
+# Advanced Report Management - Search, Filter, Export
+@api_router.get("/admin/reports/search")
+async def search_reports(
+    current_user: User = Depends(get_admin_user),
+    search_term: Optional[str] = None,
+    status: Optional[str] = None,
+    template_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    location_id: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    page: int = 1,
+    limit: int = 20
+):
+    """Advanced search and filtering for reports"""
+    # Build query
+    query = {}
+    
+    if search_term:
+        # Search in report data fields
+        query["$text"] = {"$search": search_term}
+    
+    if status:
+        query["status"] = status
+    
+    if template_id:
+        query["template_id"] = template_id
+    
+    if user_id:
+        query["user_id"] = user_id
+    
+    if location_id:
+        query["location_id"] = location_id
+    
+    if date_from or date_to:
+        date_query = {}
+        if date_from:
+            date_query["$gte"] = datetime.fromisoformat(date_from.replace('Z', '+00:00'))
+        if date_to:
+            date_query["$lte"] = datetime.fromisoformat(date_to.replace('Z', '+00:00'))
+        query["created_at"] = date_query
+    
+    # Calculate pagination
+    skip = (page - 1) * limit
+    
+    # Get total count
+    total_count = await db.report_submissions.count_documents(query)
+    
+    # Get reports
+    reports_cursor = db.report_submissions.find(query).skip(skip).limit(limit).sort("created_at", -1)
+    reports = await reports_cursor.to_list(limit)
+    
+    # Enrich with names
+    enriched_reports = []
+    for report in reports:
+        template = await db.report_templates.find_one({"id": report["template_id"]})
+        template_name = template["name"] if template else "Unknown Template"
+        
+        user = await db.users.find_one({"id": report["user_id"]})
+        username = user["username"] if user else "Unknown User"
+        
+        location_name = None
+        if report.get("location_id"):
+            location = await db.locations.find_one({"id": report["location_id"]})
+            location_name = location["name"] if location else None
+        
+        enriched_report = ReportSubmissionResponse(
+            **report,
+            template_name=template_name,
+            username=username,
+            location_name=location_name
+        )
+        enriched_reports.append(enriched_report)
+    
+    return {
+        "reports": enriched_reports,
+        "total_count": total_count,
+        "page": page,
+        "limit": limit,
+        "total_pages": (total_count + limit - 1) // limit
+    }
+
+@api_router.post("/admin/reports/bulk-actions")
+async def bulk_report_actions(
+    action: str,
+    report_ids: List[str],
+    current_user: User = Depends(get_admin_user)
+):
+    """Perform bulk actions on reports"""
+    valid_actions = ["delete", "approve", "reject", "mark_reviewed"]
+    
+    if action not in valid_actions:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid action. Must be one of: {', '.join(valid_actions)}"
+        )
+    
+    if not report_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No report IDs provided"
+        )
+    
+    # Check that all reports exist
+    existing_reports = await db.report_submissions.find({"id": {"$in": report_ids}}).to_list(1000)
+    if len(existing_reports) != len(report_ids):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Some report IDs were not found"
+        )
+    
+    if action == "delete":
+        result = await db.report_submissions.delete_many({"id": {"$in": report_ids}})
+        return {"message": f"Successfully deleted {result.deleted_count} reports"}
+    
+    elif action in ["approve", "reject", "mark_reviewed"]:
+        update_data = {
+            "reviewed_at": datetime.now(timezone.utc),
+            "reviewed_by": current_user.id
+        }
+        
+        if action == "approve":
+            update_data["status"] = "approved"
+        elif action == "reject":
+            update_data["status"] = "rejected"
+        elif action == "mark_reviewed":
+            update_data["status"] = "reviewed"
+        
+        result = await db.report_submissions.update_many(
+            {"id": {"$in": report_ids}},
+            {"$set": update_data}
+        )
+        
+        return {"message": f"Successfully {action}ed {result.modified_count} reports"}
+
+@api_router.get("/admin/reports/export")
+async def export_reports(
+    current_user: User = Depends(get_admin_user),
+    format: str = "csv",
+    status: Optional[str] = None,
+    template_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None
+):
+    """Export reports in CSV or JSON format"""
+    # Build query
+    query = {}
+    
+    if status:
+        query["status"] = status
+    if template_id:
+        query["template_id"] = template_id
+    if user_id:
+        query["user_id"] = user_id
+    
+    if date_from or date_to:
+        date_query = {}
+        if date_from:
+            date_query["$gte"] = datetime.fromisoformat(date_from.replace('Z', '+00:00'))
+        if date_to:
+            date_query["$lte"] = datetime.fromisoformat(date_to.replace('Z', '+00:00'))
+        query["created_at"] = date_query
+    
+    # Get reports
+    reports = await db.report_submissions.find(query).to_list(1000)
+    
+    # Enrich with names
+    export_data = []
+    for report in reports:
+        template = await db.report_templates.find_one({"id": report["template_id"]})
+        template_name = template["name"] if template else "Unknown Template"
+        
+        user = await db.users.find_one({"id": report["user_id"]})
+        username = user["username"] if user else "Unknown User"
+        
+        location_name = None
+        if report.get("location_id"):
+            location = await db.locations.find_one({"id": report["location_id"]})
+            location_name = location["name"] if location else None
+        
+        # Flatten report data for export
+        flat_data = {
+            "report_id": report["id"],
+            "template_name": template_name,
+            "username": username,
+            "location_name": location_name or "",
+            "report_period": report["report_period"],
+            "status": report["status"],
+            "submitted_at": report.get("submitted_at", "").isoformat() if report.get("submitted_at") else "",
+            "created_at": report["created_at"].isoformat(),
+            "updated_at": report["updated_at"].isoformat()
+        }
+        
+        # Add report data fields
+        for key, value in report.get("data", {}).items():
+            flat_data[f"data_{key}"] = str(value) if value is not None else ""
+        
+        export_data.append(flat_data)
+    
+    if format.lower() == "csv":
+        # For now, return the data structure - in production you'd generate actual CSV
+        return {
+            "format": "csv",
+            "data": export_data,
+            "filename": f"reports_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        }
+    else:
+        return {
+            "format": "json",
+            "data": export_data,
+            "filename": f"reports_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        }
+
+# Enhanced Template Builder with Preview
+@api_router.post("/admin/report-templates/preview")
+async def preview_template(
+    template_data: dict,
+    current_user: User = Depends(get_admin_user)
+):
+    """Generate a preview of how a template will look"""
+    try:
+        # Validate the template structure
+        if "name" not in template_data or "fields" not in template_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Template must have name and fields"
+            )
+        
+        # Generate preview HTML
+        html_preview = f"""
+        <div class="template-preview">
+            <h3>{template_data.get('name', 'Untitled Template')}</h3>
+            <p>{template_data.get('description', '')}</p>
+            <form class="preview-form">
+        """
+        
+        for field in template_data.get('fields', []):
+            field_html = generate_field_html_preview(field)
+            html_preview += field_html
+        
+        html_preview += """
+            </form>
+        </div>
+        """
+        
+        return {
+            "preview_html": html_preview,
+            "field_count": len(template_data.get('fields', [])),
+            "estimated_completion_time": len(template_data.get('fields', [])) * 2  # 2 minutes per field estimate
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error generating preview: {str(e)}"
+        )
+
+def generate_field_html_preview(field: dict) -> str:
+    """Generate HTML preview for a single field"""
+    field_type = field.get('field_type', 'text')
+    label = field.get('label', 'Untitled Field')
+    placeholder = field.get('placeholder', '')
+    required = field.get('required', False)
+    
+    html = f'<div class="field-preview mb-3">'
+    html += f'<label class="form-label">{label}'
+    if required:
+        html += ' <span class="text-danger">*</span>'
+    html += '</label>'
+    
+    if field_type == 'text':
+        html += f'<input type="text" class="form-control" placeholder="{placeholder}" disabled>'
+    elif field_type == 'textarea':
+        html += f'<textarea class="form-control" placeholder="{placeholder}" rows="3" disabled></textarea>'
+    elif field_type == 'number':
+        html += f'<input type="number" class="form-control" placeholder="{placeholder}" disabled>'
+    elif field_type == 'date':
+        html += f'<input type="date" class="form-control" disabled>'
+    elif field_type == 'dropdown':
+        html += '<select class="form-control" disabled>'
+        html += '<option>Select an option...</option>'
+        for option in field.get('options', []):
+            html += f'<option>{option}</option>'
+        html += '</select>'
+    elif field_type == 'checkbox':
+        html += f'<div class="form-check">'
+        html += f'<input type="checkbox" class="form-check-input" disabled>'
+        html += f'<label class="form-check-label">{label}</label>'
+        html += '</div>'
+    elif field_type == 'file':
+        html += '<input type="file" class="form-control" disabled>'
+    
+    html += '</div>'
+    return html
+
+# Enhanced Field Type Support
+@api_router.get("/admin/field-types")
+async def get_supported_field_types(current_user: User = Depends(get_admin_user)):
+    """Get all supported field types with their configurations"""
+    field_types = {
+        "text": {
+            "label": "Text Input",
+            "description": "Single line text input",
+            "supports_validation": True,
+            "supports_placeholder": True,
+            "supports_choices": False
+        },
+        "textarea": {
+            "label": "Text Area",
+            "description": "Multi-line text input",
+            "supports_validation": True,
+            "supports_placeholder": True,
+            "supports_choices": False
+        },
+        "number": {
+            "label": "Number Input",
+            "description": "Numeric input with validation",
+            "supports_validation": True,
+            "supports_placeholder": True,
+            "supports_choices": False
+        },
+        "date": {
+            "label": "Date Picker",
+            "description": "Date selection input",
+            "supports_validation": True,
+            "supports_placeholder": False,
+            "supports_choices": False
+        },
+        "dropdown": {
+            "label": "Dropdown Select",
+            "description": "Single selection from predefined options",
+            "supports_validation": False,
+            "supports_placeholder": False,
+            "supports_choices": True
+        },
+        "multiselect": {
+            "label": "Multi-Select",
+            "description": "Multiple selection from predefined options",
+            "supports_validation": False,
+            "supports_placeholder": False,
+            "supports_choices": True
+        },
+        "checkbox": {
+            "label": "Checkbox",
+            "description": "Boolean yes/no input",
+            "supports_validation": False,
+            "supports_placeholder": False,
+            "supports_choices": False
+        },
+        "file": {
+            "label": "File Upload",
+            "description": "File attachment input",
+            "supports_validation": True,
+            "supports_placeholder": False,
+            "supports_choices": False
+        }
+    }
+    
+    return {"field_types": field_types}
+
 # Basic routes
 @api_router.get("/")
 async def root():
