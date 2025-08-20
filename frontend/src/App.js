@@ -764,22 +764,26 @@ const Dashboard = () => {
                 color="green" 
               />
               <StatCard 
-                title="Recent Signups" 
-                value={stats.recent_registrations || 0} 
-                icon={Plus} 
+                title="Total Reports" 
+                value={reports.length || 0} 
+                icon={FileText} 
                 color="purple" 
               />
             </div>
 
             <Tabs defaultValue="users" className="space-y-6">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="users" className="flex items-center space-x-2">
                   <Users className="h-4 w-4" />
-                  <span>User Management</span>
+                  <span>Users</span>
                 </TabsTrigger>
                 <TabsTrigger value="locations" className="flex items-center space-x-2">
                   <MapPin className="h-4 w-4" />
                   <span>Locations</span>
+                </TabsTrigger>
+                <TabsTrigger value="reports" className="flex items-center space-x-2">
+                  <FileText className="h-4 w-4" />
+                  <span>Reports</span>
                 </TabsTrigger>
               </TabsList>
 
@@ -991,59 +995,210 @@ const Dashboard = () => {
                   </CardContent>
                 </Card>
               </TabsContent>
+
+              <TabsContent value="reports">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <FileText className="h-5 w-5" />
+                        <span>Report Management</span>
+                      </div>
+                      <Badge variant="outline">{reports.length} reports</Badge>
+                    </CardTitle>
+                    <CardDescription>
+                      View and manage all user report submissions
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {reports.length === 0 ? (
+                        <p className="text-slate-500 text-center py-8">No reports submitted yet</p>
+                      ) : (
+                        reports.map((report) => (
+                          <div key={report.id} className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover-lift">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-3">
+                                <div>
+                                  <p className="font-medium text-slate-900">{report.template_name}</p>
+                                  <p className="text-sm text-slate-500">
+                                    By: {report.username} • Period: {report.report_period}
+                                  </p>
+                                  <p className="text-xs text-slate-400">
+                                    {report.location_name && `Location: ${report.location_name} • `}
+                                    Submitted: {report.submitted_at ? new Date(report.submitted_at).toLocaleDateString() : 'Draft'}
+                                  </p>
+                                </div>
+                                <Badge variant={
+                                  report.status === 'submitted' ? 'default' : 
+                                  report.status === 'draft' ? 'secondary' : 'outline'
+                                }>
+                                  {report.status}
+                                </Badge>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center space-x-2 ml-4">
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => {
+                                  // View report details (we can add a modal here)
+                                  alert(`Report Data: ${JSON.stringify(report.data, null, 2)}`);
+                                }}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
             </Tabs>
           </div>
         ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle>User Dashboard</CardTitle>
-              <CardDescription>
-                Welcome to your dashboard. Your account status and available features.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center space-x-3">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                  <span className="text-slate-700">Account is approved and active</span>
-                </div>
-                
-                <Separator />
-                
-                <div className="space-y-2">
-                  <h3 className="font-medium text-slate-900">Account Information</h3>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-slate-500">Username:</span>
-                      <span className="ml-2 text-slate-900">{user?.username}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Email:</span>
-                      <span className="ml-2 text-slate-900">{user?.email}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Role:</span>
-                      <Badge className="ml-2" variant="secondary">{user?.role}</Badge>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Status:</span>
-                      <Badge className="ml-2" variant="default">Active</Badge>
-                    </div>
-                  </div>
-                </div>
+          // User Dashboard
+          <div className="space-y-8">
+            {/* User Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <StatCard 
+                title="My Reports" 
+                value={reports.length || 0} 
+                icon={FileText} 
+                color="blue" 
+              />
+              <StatCard 
+                title="This Month" 
+                value={reports.filter(r => r.report_period === getCurrentMonth()).length || 0} 
+                icon={Calendar} 
+                color="green" 
+              />
+              <StatCard 
+                title="Templates" 
+                value={reportTemplates.length || 0} 
+                icon={BarChart3} 
+                color="purple" 
+              />
+            </div>
 
-                <Separator />
+            {/* Report Form or List */}
+            {selectedReport ? (
+              <ReportForm 
+                template={reportTemplates.find(t => t.id === selectedReport)} 
+                existingReport={reports.find(r => 
+                  r.template_id === selectedReport && 
+                  r.report_period === getCurrentMonth()
+                )}
+              />
+            ) : (
+              <div className="space-y-6">
+                {/* Available Templates */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <FileText className="h-5 w-5" />
+                      <span>Create New Report</span>
+                    </CardTitle>
+                    <CardDescription>
+                      Select a report template to create your monthly report for {getCurrentMonth()}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {reportTemplates.map((template) => (
+                        <Card key={template.id} className="cursor-pointer hover-lift">
+                          <CardContent className="p-4">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h3 className="font-medium text-slate-900">{template.name}</h3>
+                                <p className="text-sm text-slate-500 mt-1">{template.description}</p>
+                                <p className="text-xs text-slate-400 mt-2">
+                                  {template.fields.length} fields
+                                </p>
+                              </div>
+                              <Button 
+                                size="sm"
+                                onClick={() => setSelectedReport(template.id)}
+                              >
+                                Start Report
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
 
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <h4 className="font-medium text-blue-900 mb-2">Coming Soon</h4>
-                  <p className="text-sm text-blue-700">
-                    Monthly report submission features will be available in the next update. 
-                    Stay tuned for dynamic form creation and report management capabilities!
-                  </p>
-                </div>
+                {/* My Reports History */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <BarChart3 className="h-5 w-5" />
+                      <span>My Reports</span>
+                    </CardTitle>
+                    <CardDescription>
+                      Your report submission history
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {reports.length === 0 ? (
+                        <p className="text-slate-500 text-center py-8">No reports submitted yet</p>
+                      ) : (
+                        reports.map((report) => (
+                          <div key={report.id} className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover-lift">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-3">
+                                <div>
+                                  <p className="font-medium text-slate-900">{report.template_name}</p>
+                                  <p className="text-sm text-slate-500">Period: {report.report_period}</p>
+                                  <p className="text-xs text-slate-400">
+                                    {report.submitted_at ? `Submitted: ${new Date(report.submitted_at).toLocaleDateString()}` : 'Draft'}
+                                  </p>
+                                </div>
+                                <Badge variant={
+                                  report.status === 'submitted' ? 'default' : 
+                                  report.status === 'draft' ? 'secondary' : 'outline'
+                                }>
+                                  {report.status}
+                                </Badge>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center space-x-2 ml-4">
+                              {report.status === 'draft' && (
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => setSelectedReport(report.template_id)}
+                                >
+                                  <Edit className="h-4 w-4 mr-1" />
+                                  Edit
+                                </Button>
+                              )}
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => {
+                                  alert(`Report Data: ${JSON.stringify(report.data, null, 2)}`);
+                                }}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
-            </CardContent>
-          </Card>
+            )}
+          </div>
         )}
       </main>
     </div>
