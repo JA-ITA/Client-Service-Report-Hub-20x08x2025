@@ -404,6 +404,359 @@ class MonthlyReportsHubAPITester:
             token=None
         )
 
+    # STAGE 3 TESTS - REPORT TEMPLATES AND SUBMISSIONS
+    def test_get_report_templates_admin(self):
+        """Test getting all report templates (admin)"""
+        success, response = self.run_test(
+            "Get Report Templates (Admin)",
+            "GET",
+            "admin/report-templates",
+            200,
+            token=self.admin_token
+        )
+        if success and isinstance(response, list) and len(response) > 0:
+            self.default_template_id = response[0]['id']
+            print(f"   Found default template: {response[0]['name']} (ID: {self.default_template_id})")
+        return success
+
+    def test_create_report_template(self):
+        """Test creating a new report template"""
+        timestamp = datetime.now().strftime('%H%M%S')
+        template_data = {
+            "name": f"Test Template {timestamp}",
+            "description": "A test report template for API testing",
+            "fields": [
+                {
+                    "name": "project_name",
+                    "label": "Project Name",
+                    "field_type": "text",
+                    "required": True,
+                    "placeholder": "Enter project name",
+                    "order": 1
+                },
+                {
+                    "name": "progress_percentage",
+                    "label": "Progress Percentage",
+                    "field_type": "number",
+                    "required": True,
+                    "placeholder": "Enter progress as percentage",
+                    "order": 2
+                },
+                {
+                    "name": "status",
+                    "label": "Project Status",
+                    "field_type": "dropdown",
+                    "required": True,
+                    "options": ["Not Started", "In Progress", "Completed", "On Hold"],
+                    "order": 3
+                },
+                {
+                    "name": "notes",
+                    "label": "Additional Notes",
+                    "field_type": "textarea",
+                    "required": False,
+                    "placeholder": "Any additional notes...",
+                    "order": 4
+                }
+            ]
+        }
+        
+        success, response = self.run_test(
+            "Create Report Template",
+            "POST",
+            "admin/report-templates",
+            200,
+            data=template_data,
+            token=self.admin_token
+        )
+        if success and 'id' in response:
+            self.created_template_id = response['id']
+            self.created_template_name = response['name']
+            print(f"   Created template: {self.created_template_name} (ID: {self.created_template_id})")
+        return success
+
+    def test_update_report_template(self):
+        """Test updating a report template"""
+        if not hasattr(self, 'created_template_id'):
+            print("❌ No created template ID available for update")
+            return False
+            
+        update_data = {
+            "description": "Updated description for test template",
+            "active": True
+        }
+        
+        return self.run_test(
+            "Update Report Template",
+            "PUT",
+            f"admin/report-templates/{self.created_template_id}",
+            200,
+            data=update_data,
+            token=self.admin_token
+        )
+
+    def test_get_report_templates_user(self):
+        """Test getting active report templates (user)"""
+        return self.run_test(
+            "Get Report Templates (User)",
+            "GET",
+            "report-templates",
+            200,
+            token=self.user_token
+        )
+
+    def test_get_specific_report_template(self):
+        """Test getting a specific report template"""
+        if not hasattr(self, 'default_template_id'):
+            print("❌ No template ID available")
+            return False
+            
+        return self.run_test(
+            "Get Specific Report Template",
+            "GET",
+            f"report-templates/{self.default_template_id}",
+            200,
+            token=self.user_token
+        )
+
+    def test_create_draft_report(self):
+        """Test creating a draft report"""
+        if not hasattr(self, 'default_template_id'):
+            print("❌ No template ID available for report creation")
+            return False
+            
+        current_month = datetime.now().strftime('%Y-%m')
+        report_data = {
+            "template_id": self.default_template_id,
+            "report_period": current_month,
+            "status": "draft",
+            "data": {
+                "key_achievements": "Successfully implemented new API endpoints and improved system performance",
+                "challenges": "Had some issues with database optimization but resolved them",
+                "goals_next_month": "Focus on frontend improvements and user experience enhancements",
+                "satisfaction_rating": "Satisfied",
+                "hours_worked": 160
+            }
+        }
+        
+        success, response = self.run_test(
+            "Create Draft Report",
+            "POST",
+            "reports",
+            200,
+            data=report_data,
+            token=self.user_token
+        )
+        if success and 'id' in response:
+            self.draft_report_id = response['id']
+            print(f"   Created draft report (ID: {self.draft_report_id})")
+        return success
+
+    def test_update_draft_report(self):
+        """Test updating a draft report"""
+        if not hasattr(self, 'default_template_id'):
+            print("❌ No template ID available for report update")
+            return False
+            
+        current_month = datetime.now().strftime('%Y-%m')
+        updated_report_data = {
+            "template_id": self.default_template_id,
+            "report_period": current_month,
+            "status": "draft",
+            "data": {
+                "key_achievements": "Updated achievements: Successfully implemented new API endpoints, improved system performance, and added comprehensive testing",
+                "challenges": "Resolved database optimization issues and improved error handling",
+                "goals_next_month": "Focus on frontend improvements, user experience enhancements, and documentation",
+                "satisfaction_rating": "Very Satisfied",
+                "hours_worked": 165
+            }
+        }
+        
+        return self.run_test(
+            "Update Draft Report",
+            "POST",
+            "reports",
+            200,
+            data=updated_report_data,
+            token=self.user_token
+        )
+
+    def test_submit_report(self):
+        """Test submitting a report"""
+        if not hasattr(self, 'default_template_id'):
+            print("❌ No template ID available for report submission")
+            return False
+            
+        current_month = datetime.now().strftime('%Y-%m')
+        submit_report_data = {
+            "template_id": self.default_template_id,
+            "report_period": current_month,
+            "status": "submitted",
+            "data": {
+                "key_achievements": "Final submission: Successfully implemented new API endpoints, improved system performance, and added comprehensive testing",
+                "challenges": "Resolved database optimization issues and improved error handling",
+                "goals_next_month": "Focus on frontend improvements, user experience enhancements, and documentation",
+                "satisfaction_rating": "Very Satisfied",
+                "hours_worked": 165
+            }
+        }
+        
+        success, response = self.run_test(
+            "Submit Report",
+            "POST",
+            "reports",
+            200,
+            data=submit_report_data,
+            token=self.user_token
+        )
+        if success and 'id' in response:
+            self.submitted_report_id = response['id']
+            print(f"   Submitted report (ID: {self.submitted_report_id})")
+        return success
+
+    def test_get_user_reports(self):
+        """Test getting user's own reports"""
+        return self.run_test(
+            "Get User Reports",
+            "GET",
+            "reports",
+            200,
+            token=self.user_token
+        )
+
+    def test_get_all_reports_admin(self):
+        """Test getting all reports (admin)"""
+        return self.run_test(
+            "Get All Reports (Admin)",
+            "GET",
+            "admin/reports",
+            200,
+            token=self.admin_token
+        )
+
+    def test_get_specific_report_user(self):
+        """Test getting a specific report as user"""
+        if not hasattr(self, 'submitted_report_id'):
+            print("❌ No submitted report ID available")
+            return False
+            
+        return self.run_test(
+            "Get Specific Report (User)",
+            "GET",
+            f"reports/{self.submitted_report_id}",
+            200,
+            token=self.user_token
+        )
+
+    def test_get_specific_report_admin(self):
+        """Test getting a specific report as admin"""
+        if not hasattr(self, 'submitted_report_id'):
+            print("❌ No submitted report ID available")
+            return False
+            
+        return self.run_test(
+            "Get Specific Report (Admin)",
+            "GET",
+            f"reports/{self.submitted_report_id}",
+            200,
+            token=self.admin_token
+        )
+
+    def test_duplicate_report_prevention(self):
+        """Test that duplicate reports for same period are prevented"""
+        if not hasattr(self, 'default_template_id'):
+            print("❌ No template ID available for duplicate test")
+            return False
+            
+        current_month = datetime.now().strftime('%Y-%m')
+        duplicate_report_data = {
+            "template_id": self.default_template_id,
+            "report_period": current_month,
+            "status": "draft",
+            "data": {
+                "key_achievements": "This should update the existing report",
+                "challenges": "Testing duplicate prevention",
+                "goals_next_month": "Ensure system works correctly",
+                "satisfaction_rating": "Neutral",
+                "hours_worked": 100
+            }
+        }
+        
+        # This should update the existing report, not create a new one
+        return self.run_test(
+            "Duplicate Report Prevention",
+            "POST",
+            "reports",
+            200,
+            data=duplicate_report_data,
+            token=self.user_token
+        )
+
+    def test_create_report_with_custom_template(self):
+        """Test creating a report with the custom template"""
+        if not hasattr(self, 'created_template_id'):
+            print("❌ No created template ID available")
+            return False
+            
+        next_month = datetime.now().replace(day=1)
+        if next_month.month == 12:
+            next_month = next_month.replace(year=next_month.year + 1, month=1)
+        else:
+            next_month = next_month.replace(month=next_month.month + 1)
+        
+        report_period = next_month.strftime('%Y-%m')
+        
+        custom_report_data = {
+            "template_id": self.created_template_id,
+            "report_period": report_period,
+            "status": "submitted",
+            "data": {
+                "project_name": "API Testing Project",
+                "progress_percentage": 85,
+                "status": "In Progress",
+                "notes": "Making good progress on comprehensive API testing"
+            }
+        }
+        
+        return self.run_test(
+            "Create Report with Custom Template",
+            "POST",
+            "reports",
+            200,
+            data=custom_report_data,
+            token=self.user_token
+        )
+
+    def test_delete_template_with_submissions(self):
+        """Test deleting a template that has submissions (should fail)"""
+        if not hasattr(self, 'default_template_id'):
+            print("❌ No template ID available for deletion test")
+            return False
+            
+        return self.run_test(
+            "Delete Template with Submissions (Should Fail)",
+            "DELETE",
+            f"admin/report-templates/{self.default_template_id}",
+            400,  # Should fail because it has submissions
+            token=self.admin_token,
+            expect_json=False
+        )
+
+    def test_delete_template_success(self):
+        """Test deleting a template without submissions"""
+        if not hasattr(self, 'created_template_id'):
+            print("❌ No created template ID available for deletion")
+            return False
+            
+        return self.run_test(
+            "Delete Template Success",
+            "DELETE",
+            f"admin/report-templates/{self.created_template_id}",
+            200,
+            token=self.admin_token,
+            expect_json=False
+        )
+
 def main():
     print("🚀 Starting MonthlyReportsHub API Tests")
     print("=" * 50)
