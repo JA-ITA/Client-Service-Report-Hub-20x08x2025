@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 
 class MonthlyReportsHubAPITester:
-    def __init__(self, base_url="https://reports-auth-portal.preview.emergentagent.com"):
+    def __init__(self, base_url="https://monthly-reports-qa.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
         self.admin_token = None
