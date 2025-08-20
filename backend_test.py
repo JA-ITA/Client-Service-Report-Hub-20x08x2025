@@ -216,12 +216,179 @@ class MonthlyReportsHubAPITester:
             "name": f"Test Location {timestamp}"
         }
         
-        return self.run_test(
+        success, response = self.run_test(
             "Create Location (Admin)",
             "POST",
             "locations",
             200,
             data=location_data,
+            token=self.admin_token
+        )
+        if success and 'id' in response:
+            self.created_location_id = response['id']
+            self.created_location_name = response['name']
+            print(f"   Created location: {self.created_location_name} (ID: {self.created_location_id})")
+        return success
+
+    # NEW STAGE 2 TESTS
+    def test_admin_stats(self):
+        """Test admin statistics endpoint"""
+        success, response = self.run_test(
+            "Admin Statistics",
+            "GET",
+            "admin/stats",
+            200,
+            token=self.admin_token
+        )
+        if success:
+            expected_keys = ['total_users', 'pending_users', 'total_locations', 'recent_registrations', 'admin_users', 'regular_users', 'approved_users']
+            for key in expected_keys:
+                if key not in response:
+                    print(f"   ⚠️  Missing key in stats: {key}")
+                    return False
+            print(f"   Stats: {response['total_users']} users, {response['total_locations']} locations, {response['pending_users']} pending")
+        return success
+
+    def test_update_user_role_to_admin(self):
+        """Test updating user role to ADMIN"""
+        if not self.test_user_id:
+            print("❌ No test user ID available for role update")
+            return False
+            
+        return self.run_test(
+            "Update User Role to ADMIN",
+            "PUT",
+            f"admin/users/{self.test_user_id}/role",
+            200,
+            data={"role": "ADMIN"},
+            token=self.admin_token
+        )
+
+    def test_update_user_role_to_user(self):
+        """Test updating user role back to USER"""
+        if not self.test_user_id:
+            print("❌ No test user ID available for role update")
+            return False
+            
+        return self.run_test(
+            "Update User Role to USER",
+            "PUT",
+            f"admin/users/{self.test_user_id}/role",
+            200,
+            data={"role": "USER"},
+            token=self.admin_token
+        )
+
+    def test_update_user_role_invalid(self):
+        """Test updating user role with invalid role (should fail)"""
+        if not self.test_user_id:
+            print("❌ No test user ID available for role update")
+            return False
+            
+        return self.run_test(
+            "Update User Role Invalid",
+            "PUT",
+            f"admin/users/{self.test_user_id}/role",
+            400,  # Should be bad request
+            data={"role": "INVALID_ROLE"},
+            token=self.admin_token
+        )
+
+    def test_update_location(self):
+        """Test updating a location"""
+        if not hasattr(self, 'created_location_id'):
+            print("❌ No created location ID available for update")
+            return False
+            
+        updated_name = f"Updated {self.created_location_name}"
+        return self.run_test(
+            "Update Location",
+            "PUT",
+            f"admin/locations/{self.created_location_id}",
+            200,
+            data={"name": updated_name},
+            token=self.admin_token
+        )
+
+    def test_delete_user_self_protection(self):
+        """Test that admin cannot delete their own account"""
+        # First get admin user ID
+        success, response = self.run_test(
+            "Get Admin User Info",
+            "GET",
+            "auth/me",
+            200,
+            token=self.admin_token
+        )
+        if not success or 'id' not in response:
+            print("❌ Could not get admin user ID")
+            return False
+            
+        admin_user_id = response['id']
+        
+        # Try to delete own account (should fail)
+        return self.run_test(
+            "Delete Own Account (Should Fail)",
+            "DELETE",
+            f"admin/users/{admin_user_id}",
+            400,  # Should be bad request
+            token=self.admin_token,
+            expect_json=False
+        )
+
+    def test_delete_location_in_use(self):
+        """Test deleting a location that's in use (should fail)"""
+        if not self.location_id:
+            print("❌ No location ID available for deletion test")
+            return False
+            
+        # This should fail because the test user is assigned to this location
+        return self.run_test(
+            "Delete Location In Use (Should Fail)",
+            "DELETE",
+            f"admin/locations/{self.location_id}",
+            400,  # Should be bad request
+            token=self.admin_token,
+            expect_json=False
+        )
+
+    def test_delete_location_success(self):
+        """Test deleting a location that's not in use"""
+        if not hasattr(self, 'created_location_id'):
+            print("❌ No created location ID available for deletion")
+            return False
+            
+        return self.run_test(
+            "Delete Location Success",
+            "DELETE",
+            f"admin/locations/{self.created_location_id}",
+            200,
+            token=self.admin_token,
+            expect_json=False
+        )
+
+    def test_delete_user_success(self):
+        """Test deleting a user (should be last test)"""
+        if not self.test_user_id:
+            print("❌ No test user ID available for deletion")
+            return False
+            
+        return self.run_test(
+            "Delete User Success",
+            "DELETE",
+            f"admin/users/{self.test_user_id}",
+            200,
+            token=self.admin_token,
+            expect_json=False
+        )
+
+    def test_get_admin_locations(self):
+        """Test getting all locations via admin endpoint"""
+        return self.run_test(
+            "Get Admin Locations",
+            "GET",
+            "admin/locations",
+            200,
             token=self.admin_token
         )
 
