@@ -519,6 +519,262 @@ async def get_system_stats(current_user: User = Depends(get_admin_user)):
         "recent_registrations": recent_registrations
     }
 
+# Report Template Management APIs (Admin Only)
+@api_router.get("/admin/report-templates", response_model=List[ReportTemplate])
+async def get_all_report_templates(current_user: User = Depends(get_admin_user)):
+    templates = await db.report_templates.find().to_list(1000)
+    return [ReportTemplate(**template) for template in templates]
+
+@api_router.post("/admin/report-templates", response_model=ReportTemplate)
+async def create_report_template(template_data: ReportTemplateCreate, current_user: User = Depends(get_admin_user)):
+    # Check if template name already exists
+    existing_template = await db.report_templates.find_one({"name": template_data.name})
+    if existing_template:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Report template name already exists"
+        )
+    
+    # Convert fields to include IDs
+    fields_with_ids = []
+    for field in template_data.fields:
+        field_dict = field.dict()
+        field_dict["id"] = str(uuid.uuid4())
+        fields_with_ids.append(field_dict)
+    
+    new_template = ReportTemplate(
+        **template_data.dict(exclude={"fields"}),
+        fields=fields_with_ids,
+        created_by=current_user.id
+    )
+    await db.report_templates.insert_one(new_template.dict())
+    return new_template
+
+@api_router.put("/admin/report-templates/{template_id}", response_model=ReportTemplate)
+async def update_report_template(template_id: str, template_data: ReportTemplateUpdate, current_user: User = Depends(get_admin_user)):
+    # Check if template exists
+    existing_template = await db.report_templates.find_one({"id": template_id})
+    if not existing_template:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report template not found"
+        )
+    
+    update_data = {}
+    if template_data.name is not None:
+        # Check if new name already exists (excluding current template)
+        name_exists = await db.report_templates.find_one({
+            "id": {"$ne": template_id},
+            "name": template_data.name
+        })
+        if name_exists:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Report template name already exists"
+            )
+        update_data["name"] = template_data.name
+    
+    if template_data.description is not None:
+        update_data["description"] = template_data.description
+    
+    if template_data.active is not None:
+        update_data["active"] = template_data.active
+    
+    if template_data.fields is not None:
+        # Convert fields to include IDs
+        fields_with_ids = []
+        for field in template_data.fields:
+            field_dict = field.dict()
+            field_dict["id"] = str(uuid.uuid4())
+            fields_with_ids.append(field_dict)
+        update_data["fields"] = fields_with_ids
+    
+    update_data["updated_at"] = datetime.now(timezone.utc)
+    
+    await db.report_templates.update_one(
+        {"id": template_id},
+        {"$set": update_data}
+    )
+    
+    updated_template = await db.report_templates.find_one({"id": template_id})
+    return ReportTemplate(**updated_template)
+
+@api_router.delete("/admin/report-templates/{template_id}")
+async def delete_report_template(template_id: str, current_user: User = Depends(get_admin_user)):
+    # Check if template has any submissions
+    submissions_exist = await db.report_submissions.find_one({"template_id": template_id})
+    if submissions_exist:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete template. It has existing submissions."
+        )
+    
+    result = await db.report_templates.delete_one({"id": template_id})
+    if result.deleted_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report template not found"
+        )
+    return {"message": "Report template deleted successfully"}
+
+# Report Templates for Users
+@api_router.get("/report-templates", response_model=List[ReportTemplate])
+async def get_active_report_templates(current_user: User = Depends(get_current_user)):
+    templates = await db.report_templates.find({"active": True}).to_list(1000)
+    return [ReportTemplate(**template) for template in templates]
+
+@api_router.get("/report-templates/{template_id}", response_model=ReportTemplate)
+async def get_report_template(template_id: str, current_user: User = Depends(get_current_user)):
+    template = await db.report_templates.find_one({"id": template_id, "active": True})
+    if not template:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report template not found"
+        )
+    return ReportTemplate(**template)
+
+# Report Submission APIs
+@api_router.get("/reports", response_model=List[ReportSubmissionResponse])
+async def get_user_reports(current_user: User = Depends(get_current_user)):
+    # Get user's own reports
+    reports = await db.report_submissions.find({"user_id": current_user.id}).to_list(1000)
+    
+    # Enrich with template and location names
+    enriched_reports = []
+    for report in reports:
+        # Get template name
+        template = await db.report_templates.find_one({"id": report["template_id"]})
+        template_name = template["name"] if template else "Unknown Template"
+        
+        # Get location name
+        location_name = None
+        if report.get("location_id"):
+            location = await db.locations.find_one({"id": report["location_id"]})
+            location_name = location["name"] if location else None
+        
+        enriched_report = ReportSubmissionResponse(
+            **report,
+            template_name=template_name,
+            username=current_user.username,
+            location_name=location_name
+        )
+        enriched_reports.append(enriched_report)
+    
+    return enriched_reports
+
+@api_router.get("/admin/reports", response_model=List[ReportSubmissionResponse])
+async def get_all_reports(current_user: User = Depends(get_admin_user)):
+    # Get all reports for admin
+    reports = await db.report_submissions.find().to_list(1000)
+    
+    # Enrich with template, user, and location names
+    enriched_reports = []
+    for report in reports:
+        # Get template name
+        template = await db.report_templates.find_one({"id": report["template_id"]})
+        template_name = template["name"] if template else "Unknown Template"
+        
+        # Get user name
+        user = await db.users.find_one({"id": report["user_id"]})
+        username = user["username"] if user else "Unknown User"
+        
+        # Get location name
+        location_name = None
+        if report.get("location_id"):
+            location = await db.locations.find_one({"id": report["location_id"]})
+            location_name = location["name"] if location else None
+        
+        enriched_report = ReportSubmissionResponse(
+            **report,
+            template_name=template_name,
+            username=username,
+            location_name=location_name
+        )
+        enriched_reports.append(enriched_report)
+    
+    return enriched_reports
+
+@api_router.post("/reports", response_model=ReportSubmission)
+async def create_or_update_report(report_data: ReportSubmissionCreate, current_user: User = Depends(get_current_user)):
+    # Check if template exists and is active
+    template = await db.report_templates.find_one({"id": report_data.template_id, "active": True})
+    if not template:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report template not found or inactive"
+        )
+    
+    # Check if report already exists for this user, template, and period
+    existing_report = await db.report_submissions.find_one({
+        "user_id": current_user.id,
+        "template_id": report_data.template_id,
+        "report_period": report_data.report_period
+    })
+    
+    if existing_report:
+        # Update existing report
+        update_data = {
+            "data": report_data.data,
+            "status": report_data.status,
+            "updated_at": datetime.now(timezone.utc)
+        }
+        
+        if report_data.status == "submitted" and existing_report.get("status") != "submitted":
+            update_data["submitted_at"] = datetime.now(timezone.utc)
+        
+        await db.report_submissions.update_one(
+            {"id": existing_report["id"]},
+            {"$set": update_data}
+        )
+        
+        updated_report = await db.report_submissions.find_one({"id": existing_report["id"]})
+        return ReportSubmission(**updated_report)
+    else:
+        # Create new report
+        new_report = ReportSubmission(
+            **report_data.dict(),
+            user_id=current_user.id,
+            location_id=current_user.location_id,
+            submitted_at=datetime.now(timezone.utc) if report_data.status == "submitted" else None
+        )
+        await db.report_submissions.insert_one(new_report.dict())
+        return new_report
+
+@api_router.get("/reports/{report_id}", response_model=ReportSubmissionResponse)
+async def get_report(report_id: str, current_user: User = Depends(get_current_user)):
+    report = await db.report_submissions.find_one({"id": report_id})
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not found"
+        )
+    
+    # Check permissions - users can only see their own reports, admins can see all
+    if current_user.role != "ADMIN" and report["user_id"] != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to view this report"
+        )
+    
+    # Enrich with names
+    template = await db.report_templates.find_one({"id": report["template_id"]})
+    template_name = template["name"] if template else "Unknown Template"
+    
+    user = await db.users.find_one({"id": report["user_id"]})
+    username = user["username"] if user else "Unknown User"
+    
+    location_name = None
+    if report.get("location_id"):
+        location = await db.locations.find_one({"id": report["location_id"]})
+        location_name = location["name"] if location else None
+    
+    return ReportSubmissionResponse(
+        **report,
+        template_name=template_name,
+        username=username,
+        location_name=location_name
+    )
+
 # Basic routes
 @api_router.get("/")
 async def root():
