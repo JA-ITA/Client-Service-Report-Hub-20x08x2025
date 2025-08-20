@@ -82,6 +82,86 @@ class UserResponse(BaseModel):
     approved: bool
     created_at: datetime
 
+# New Stage 3 Models - Dynamic Reporting
+class ReportField(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    label: str
+    field_type: str  # text, number, date, dropdown, checkbox, textarea
+    required: bool = False
+    options: Optional[List[str]] = None  # For dropdown fields
+    placeholder: Optional[str] = None
+    validation: Optional[dict] = None  # Custom validation rules
+    order: int = 0
+
+class ReportFieldCreate(BaseModel):
+    name: str
+    label: str
+    field_type: str
+    required: bool = False
+    options: Optional[List[str]] = None
+    placeholder: Optional[str] = None
+    validation: Optional[dict] = None
+    order: int = 0
+
+class ReportTemplate(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    description: str
+    fields: List[ReportField] = []
+    active: bool = True
+    created_by: str  # Admin user ID
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ReportTemplateCreate(BaseModel):
+    name: str
+    description: str
+    fields: List[ReportFieldCreate] = []
+
+class ReportTemplateUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    fields: Optional[List[ReportFieldCreate]] = None
+    active: Optional[bool] = None
+
+class ReportSubmission(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    template_id: str
+    user_id: str
+    location_id: Optional[str] = None
+    report_period: str  # Format: "2025-01" for January 2025
+    data: dict  # Dynamic field data
+    status: str = "draft"  # draft, submitted, reviewed, approved
+    submitted_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ReportSubmissionCreate(BaseModel):
+    template_id: str
+    report_period: str
+    data: dict
+    status: str = "draft"
+
+class ReportSubmissionUpdate(BaseModel):
+    data: Optional[dict] = None
+    status: Optional[str] = None
+
+class ReportSubmissionResponse(BaseModel):
+    id: str
+    template_id: str
+    template_name: str
+    user_id: str
+    username: str
+    location_id: Optional[str] = None
+    location_name: Optional[str] = None
+    report_period: str
+    data: dict
+    status: str
+    submitted_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
 # Utility functions
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
