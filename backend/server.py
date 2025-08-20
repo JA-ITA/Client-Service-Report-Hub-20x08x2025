@@ -213,6 +213,13 @@ async def init_database():
     await db.users.create_index([("email", 1)], unique=True)
     await db.locations.create_index([("name", 1)], unique=True)
     
+    # New indexes for reporting
+    await db.report_templates.create_index([("name", 1)], unique=True)
+    await db.report_submissions.create_index([("user_id", 1)])
+    await db.report_submissions.create_index([("template_id", 1)])
+    await db.report_submissions.create_index([("report_period", 1)])
+    await db.report_submissions.create_index([("user_id", 1), ("template_id", 1), ("report_period", 1)], unique=True)
+    
     # Seed admin user
     admin_exists = await db.users.find_one({"username": "admin"})
     if not admin_exists:
@@ -239,6 +246,69 @@ async def init_database():
         }
         await db.locations.insert_one(default_loc)
         logger.info("Default location created: Main Office")
+    
+    # Create default report template
+    default_template = await db.report_templates.find_one({"name": "Monthly Progress Report"})
+    if not default_template:
+        admin_user = await db.users.find_one({"username": "admin"})
+        default_template = {
+            "id": str(uuid.uuid4()),
+            "name": "Monthly Progress Report",
+            "description": "Standard monthly progress and metrics report",
+            "fields": [
+                {
+                    "id": str(uuid.uuid4()),
+                    "name": "key_achievements",
+                    "label": "Key Achievements",
+                    "field_type": "textarea",
+                    "required": True,
+                    "placeholder": "List your key achievements for this month...",
+                    "order": 1
+                },
+                {
+                    "id": str(uuid.uuid4()),
+                    "name": "challenges",
+                    "label": "Challenges Faced",
+                    "field_type": "textarea",
+                    "required": True,
+                    "placeholder": "Describe any challenges you encountered...",
+                    "order": 2
+                },
+                {
+                    "id": str(uuid.uuid4()),
+                    "name": "goals_next_month",
+                    "label": "Goals for Next Month",
+                    "field_type": "textarea",
+                    "required": True,
+                    "placeholder": "What are your goals for next month?",
+                    "order": 3
+                },
+                {
+                    "id": str(uuid.uuid4()),
+                    "name": "satisfaction_rating",
+                    "label": "Overall Satisfaction",
+                    "field_type": "dropdown",
+                    "required": True,
+                    "options": ["Very Satisfied", "Satisfied", "Neutral", "Dissatisfied", "Very Dissatisfied"],
+                    "order": 4
+                },
+                {
+                    "id": str(uuid.uuid4()),
+                    "name": "hours_worked",
+                    "label": "Total Hours Worked",
+                    "field_type": "number",
+                    "required": True,
+                    "placeholder": "Enter total hours worked this month",
+                    "order": 5
+                }
+            ],
+            "active": True,
+            "created_by": admin_user["id"] if admin_user else str(uuid.uuid4()),
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc)
+        }
+        await db.report_templates.insert_one(default_template)
+        logger.info("Default report template created: Monthly Progress Report")
 
 # Authentication routes
 @api_router.post("/auth/register", response_model=UserResponse)
