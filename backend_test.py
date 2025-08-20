@@ -758,18 +758,21 @@ class MonthlyReportsHubAPITester:
         )
 
 def main():
-    print("🚀 Starting MonthlyReportsHub API Tests")
-    print("=" * 50)
+    print("🚀 Starting MonthlyReportsHub API Comprehensive Tests")
+    print("=" * 60)
     
     tester = MonthlyReportsHubAPITester()
     
-    # Test sequence
+    # Test sequence - Complete user journey
     test_sequence = [
+        # Basic API and Authentication Tests
         ("Root Endpoint", tester.test_root_endpoint),
         ("Get Locations", tester.test_get_locations),
         ("Admin Login", tester.test_admin_login),
         ("Get Current User (Admin)", tester.test_get_current_user_admin),
         ("Admin Statistics", tester.test_admin_stats),
+        
+        # User Registration and Approval Workflow
         ("User Registration", tester.test_user_registration),
         ("User Login Before Approval", tester.test_user_login_before_approval),
         ("Get All Users (Admin)", tester.test_get_all_users_admin),
@@ -777,14 +780,40 @@ def main():
         ("User Login After Approval", tester.test_user_login_after_approval),
         ("Get Current User (Regular)", tester.test_get_current_user_regular),
         ("Protected Route", tester.test_protected_route),
+        
+        # Authorization and User Management Tests
         ("Admin Route with User Token", tester.test_admin_route_with_user_token),
         ("Update User Role to ADMIN", tester.test_update_user_role_to_admin),
         ("Update User Role to USER", tester.test_update_user_role_to_user),
         ("Update User Role Invalid", tester.test_update_user_role_invalid),
+        
+        # Location Management Tests
         ("Create Location (Admin)", tester.test_create_location_admin),
         ("Get Admin Locations", tester.test_get_admin_locations),
         ("Update Location", tester.test_update_location),
         ("Delete Location In Use (Should Fail)", tester.test_delete_location_in_use),
+        
+        # Report Template Management Tests
+        ("Get Report Templates (Admin)", tester.test_get_report_templates_admin),
+        ("Create Report Template", tester.test_create_report_template),
+        ("Update Report Template", tester.test_update_report_template),
+        ("Get Report Templates (User)", tester.test_get_report_templates_user),
+        ("Get Specific Report Template", tester.test_get_specific_report_template),
+        
+        # Report Submission Workflow Tests
+        ("Create Draft Report", tester.test_create_draft_report),
+        ("Update Draft Report", tester.test_update_draft_report),
+        ("Submit Report", tester.test_submit_report),
+        ("Get User Reports", tester.test_get_user_reports),
+        ("Get All Reports (Admin)", tester.test_get_all_reports_admin),
+        ("Get Specific Report (User)", tester.test_get_specific_report_user),
+        ("Get Specific Report (Admin)", tester.test_get_specific_report_admin),
+        ("Duplicate Report Prevention", tester.test_duplicate_report_prevention),
+        ("Create Report with Custom Template", tester.test_create_report_with_custom_template),
+        
+        # Cleanup and Edge Case Tests
+        ("Delete Template with Submissions (Should Fail)", tester.test_delete_template_with_submissions),
+        ("Delete Template Success", tester.test_delete_template_success),
         ("Delete Location Success", tester.test_delete_location_success),
         ("Delete Own Account (Should Fail)", tester.test_delete_user_self_protection),
         ("Delete User Success", tester.test_delete_user_success),
@@ -792,20 +821,28 @@ def main():
     ]
     
     # Run all tests
+    failed_tests = []
     for test_name, test_func in test_sequence:
         try:
             success = test_func()
             if not success:
+                failed_tests.append(test_name)
                 print(f"⚠️  Test '{test_name}' failed, but continuing...")
         except Exception as e:
+            failed_tests.append(test_name)
             print(f"💥 Test '{test_name}' crashed: {str(e)}")
     
     # Print final results
-    print("\n" + "=" * 50)
+    print("\n" + "=" * 60)
     print(f"📊 Final Results: {tester.tests_passed}/{tester.tests_run} tests passed")
     
+    if failed_tests:
+        print(f"\n❌ Failed Tests ({len(failed_tests)}):")
+        for test in failed_tests:
+            print(f"   - {test}")
+    
     if tester.tests_passed == tester.tests_run:
-        print("🎉 All tests passed!")
+        print("🎉 All tests passed! Complete user journey working correctly.")
         return 0
     else:
         print(f"⚠️  {tester.tests_run - tester.tests_passed} tests failed")
