@@ -653,9 +653,167 @@ async def delete_location(location_id: str, current_user: User = Depends(get_adm
         )
     return {"message": "Location deleted successfully"}
 
-# Admin routes - System Statistics  
-@api_router.get("/admin/stats")
-async def get_system_stats(current_user: User = Depends(get_admin_user)):
+# Enhanced Stage 3: Dynamic Field Management APIs (Admin Only)
+@api_router.get("/admin/dynamic-fields", response_model=List[DynamicField])
+async def get_all_dynamic_fields(current_user: User = Depends(get_admin_user), include_deleted: bool = False):
+    """Get all dynamic fields with optional inclusion of deleted fields"""
+    filter_query = {} if include_deleted else {"deleted": {"$ne": True}}
+    fields = await db.dynamic_fields.find(filter_query).to_list(1000)
+    return [DynamicField(**field) for field in fields]
+
+@api_router.get("/admin/dynamic-fields/sections")
+async def get_field_sections(current_user: User = Depends(get_admin_user)):
+    """Get all unique field sections for organizing fields"""
+    sections = await db.dynamic_fields.distinct("section", {"deleted": {"$ne": True}})
+    return {"sections": sections}
+
+@api_router.post("/admin/dynamic-fields", response_model=DynamicField)
+async def create_dynamic_field(field_data: DynamicFieldCreate, current_user: User = Depends(get_admin_user)):
+    """Create a new dynamic field"""
+    # Validate field type
+    valid_types = ["text", "number", "date", "dropdown", "multiselect", "textarea", "file", "checkbox"]
+    if field_data.field_type not in valid_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid field type. Must be one of: {', '.join(valid_types)}"
+        )
+    
+    # For dropdown/multiselect, ensure choices are provided
+    if field_data.field_type in ["dropdown", "multiselect"] and not field_data.choices:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Choices must be provided for dropdown and multiselect fields"
+        )
+    
+    new_field = DynamicField(
+        **field_data.dict(),
+        created_by=current_user.id
+    )
+    await db.dynamic_fields.insert_one(new_field.dict())
+    return new_field
+
+@api_router.put("/admin/dynamic-fields/{field_id}", response_model=DynamicField)
+async def update_dynamic_field(field_id: str, field_data: DynamicFieldUpdate, current_user: User = Depends(get_admin_user)):
+    """Update a dynamic field"""
+    # Check if field exists
+    existing_field = await db.dynamic_fields.find_one({"id": field_id})
+    if not existing_field:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Dynamic field not found"
+        )
+    
+    # Validate field type if being updated
+    if field_data.field_type:
+        valid_types = ["text", "number", "date", "dropdown", "multiselect", "textarea", "file", "checkbox"]
+        if field_data.field_type not in valid_types:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid field type. Must be one of: {', '.join(valid_types)}"
+            )
+    
+    # Prepare update data
+    update_data = {k: v for k, v in field_data.dict().items() if v is not None}
+    update_data["updated_at"] = datetime.now(timezone.utc)
+    
+    await db.dynamic_fields.update_one(
+        {"id": field_id},
+        {"$set": update_data}
+    )
+    
+    updated_field = await db.dynamic_fields.find_one({"id": field_id})
+    return DynamicField(**updated_field)
+
+@api_router.delete("/admin/dynamic-fields/{field_id}")
+async def soft_delete_dynamic_field(field_id: str, current_user: User = Depends(get_admin_user)):
+    """Soft delete a dynamic field"""
+    result = await db.dynamic_fields.update_one(
+        {"id": field_id},
+        {"$set": {"deleted": True, "updated_at": datetime.now(timezone.utc)}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Dynamic field not found"
+        )
+    return {"message": "Dynamic field deleted successfully"}
+
+@api_router.post("/admin/dynamic-fields/{field_id}/restore")
+async def restore_dynamic_field(field_id: str, current_user: User = Depends(get_admin_user)):
+    """Restore a soft-deleted dynamic field"""
+    result = await db.dynamic_fields.update_one(
+        {"id": field_id},
+        {"$set": {"deleted": False, "updated_at": datetime.now(timezone.utc)}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Dynamic field not found"
+        )
+    return {"message": "Dynamic field restored successfully"}
+
+# Enhanced Report Template Management with Dynamic Fields
+@api_router.post("/admin/report-templates/from-fields", response_model=ReportTemplate)
+async def create_template_from_dynamic_fields(
+    template_name: str,
+    template_description: str,
+    field_ids: List[str],
+    template_category: str = "General",
+    current_user: User = Depends(get_admin_user)
+):
+    """Create a report template from selected dynamic fields"""
+    # Check if template name already exists
+    existing_template = await db.report_templates.find_one({"name": template_name})
+    if existing_template:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Report template name already exists"
+        )
+    
+    # Fetch the selected dynamic fields
+    selected_fields = await db.dynamic_fields.find({
+        "id": {"$in": field_ids},
+        "deleted": {"$ne": True}
+    }).to_list(1000)
+    
+    if len(selected_fields) != len(field_ids):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Some selected fields were not found or are deleted"
+        )
+    
+    # Convert dynamic fields to report fields
+    report_fields = []
+    for i, field in enumerate(selected_fields):
+        report_field = {
+            "id": str(uuid.uuid4()),
+            "name": field["label"].lower().replace(" ", "_"),
+            "label": field["label"],
+            "field_type": field["field_type"],
+            "required": False,  # Default to not required, can be customized
+            "options": field.get("choices"),
+            "placeholder": field.get("placeholder"),
+            "validation": field.get("validation"),
+            "order": i + 1
+        }
+        report_fields.append(report_field)
+    
+    # Create the new template
+    new_template = ReportTemplate(
+        name=template_name,
+        description=template_description,
+        fields=report_fields,
+        created_by=current_user.id
+    )
+    
+    await db.report_templates.insert_one(new_template.dict())
+    return new_template
+
+# System Analytics and Enhanced Statistics
+@api_router.get("/admin/analytics")
+async def get_system_analytics(current_user: User = Depends(get_admin_user)):
+    """Get enhanced system analytics and metrics"""
+    # Basic user and location stats
     total_users = await db.users.count_documents({})
     approved_users = await db.users.count_documents({"approved": True})
     pending_users = await db.users.count_documents({"approved": False})
@@ -663,21 +821,75 @@ async def get_system_stats(current_user: User = Depends(get_admin_user)):
     admin_users = await db.users.count_documents({"role": "ADMIN"})
     regular_users = await db.users.count_documents({"role": "USER"})
     
-    # Recent registrations (last 7 days)
+    # Report and field statistics
+    total_templates = await db.report_templates.count_documents({"active": True})
+    total_fields = await db.dynamic_fields.count_documents({"deleted": {"$ne": True}})
+    total_reports = await db.report_submissions.count_documents({})
+    submitted_reports = await db.report_submissions.count_documents({"status": "submitted"})
+    draft_reports = await db.report_submissions.count_documents({"status": "draft"})
+    
+    # Time-based analytics
     seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+    
     recent_registrations = await db.users.count_documents({
         "created_at": {"$gte": seven_days_ago}
     })
     
+    recent_submissions = await db.report_submissions.count_documents({
+        "created_at": {"$gte": seven_days_ago}
+    })
+    
+    monthly_submissions = await db.report_submissions.count_documents({
+        "created_at": {"$gte": thirty_days_ago}
+    })
+    
+    # Field usage analytics
+    field_sections = await db.dynamic_fields.distinct("section", {"deleted": {"$ne": True}})
+    section_stats = {}
+    for section in field_sections:
+        count = await db.dynamic_fields.count_documents({
+            "section": section,
+            "deleted": {"$ne": True}
+        })
+        section_stats[section] = count
+    
     return {
+        # User metrics
         "total_users": total_users,
         "approved_users": approved_users,
         "pending_users": pending_users,
-        "total_locations": total_locations,
         "admin_users": admin_users,
         "regular_users": regular_users,
-        "recent_registrations": recent_registrations
+        "recent_registrations": recent_registrations,
+        
+        # System metrics
+        "total_locations": total_locations,
+        "total_templates": total_templates,
+        "total_fields": total_fields,
+        
+        # Report metrics
+        "total_reports": total_reports,
+        "submitted_reports": submitted_reports,
+        "draft_reports": draft_reports,
+        "recent_submissions": recent_submissions,
+        "monthly_submissions": monthly_submissions,
+        
+        # Field analytics
+        "field_sections": field_sections,
+        "section_stats": section_stats,
+        
+        # Calculated metrics
+        "approval_rate": round((approved_users / total_users * 100) if total_users > 0 else 0, 1),
+        "submission_rate": round((submitted_reports / total_reports * 100) if total_reports > 0 else 0, 1)
     }
+
+# Report Templates for Users (Enhanced)
+@api_router.get("/report-templates/enhanced", response_model=List[ReportTemplate])
+async def get_enhanced_report_templates(current_user: User = Depends(get_current_user)):
+    """Get active report templates with enhanced metadata"""
+    templates = await db.report_templates.find({"active": True}).to_list(1000)
+    return [ReportTemplate(**template) for template in templates]
 
 # Report Template Management APIs (Admin Only)
 @api_router.get("/admin/report-templates", response_model=List[ReportTemplate])
