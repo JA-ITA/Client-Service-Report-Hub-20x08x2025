@@ -293,6 +293,23 @@ async def init_database():
     await db.dynamic_fields.create_index([("section", 1)])
     await db.dynamic_fields.create_index([("deleted", 1)])
     await db.dynamic_fields.create_index([("created_by", 1)])
+    await db.dynamic_fields.create_index([("field_type", 1)])
+    
+    # Advanced search indexes for reports
+    await db.report_submissions.create_index([("status", 1)])
+    await db.report_submissions.create_index([("location_id", 1)])
+    await db.report_submissions.create_index([("created_at", -1)])
+    await db.report_submissions.create_index([("submitted_at", -1)])
+    
+    # Text search index for report data
+    try:
+        await db.report_submissions.create_index([
+            ("data", "text"),
+            ("report_period", "text")
+        ])
+    except Exception:
+        # Index might already exist or text search not supported
+        pass
     
     # Seed admin user
     admin_exists = await db.users.find_one({"username": "admin"})
