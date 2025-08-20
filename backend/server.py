@@ -752,6 +752,32 @@ async def restore_dynamic_field(field_id: str, current_user: User = Depends(get_
         )
     return {"message": "Dynamic field restored successfully"}
 
+# Admin routes - System Statistics (backward compatibility)
+@api_router.get("/admin/stats")
+async def get_system_stats(current_user: User = Depends(get_admin_user)):
+    total_users = await db.users.count_documents({})
+    approved_users = await db.users.count_documents({"approved": True})
+    pending_users = await db.users.count_documents({"approved": False})
+    total_locations = await db.locations.count_documents({})
+    admin_users = await db.users.count_documents({"role": "ADMIN"})
+    regular_users = await db.users.count_documents({"role": "USER"})
+    
+    # Recent registrations (last 7 days)
+    seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    recent_registrations = await db.users.count_documents({
+        "created_at": {"$gte": seven_days_ago}
+    })
+    
+    return {
+        "total_users": total_users,
+        "approved_users": approved_users,
+        "pending_users": pending_users,
+        "total_locations": total_locations,
+        "admin_users": admin_users,
+        "regular_users": regular_users,
+        "recent_registrations": recent_registrations
+    }
+
 # Enhanced Report Template Management with Dynamic Fields
 @api_router.post("/admin/report-templates/from-fields", response_model=ReportTemplate)
 async def create_template_from_dynamic_fields(
