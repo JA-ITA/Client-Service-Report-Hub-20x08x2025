@@ -614,6 +614,33 @@ const Dashboard = () => {
       setError(error.response?.data?.detail || 'Failed to restore dynamic field');
     }
   };
+
+  // Report management functions
+  const submitReport = async (templateId, reportPeriod, data, status = 'draft') => {
+    setLoading(true);
+    try {
+      await axios.post(`${API}/reports`, {
+        template_id: templateId,
+        report_period: reportPeriod,
+        data: data,
+        status: status
+      });
+      
+      if (isAdmin) {
+        fetchAllReports();
+      } else {
+        fetchUserReports();
+      }
+      
+      setReportFormData({});
+      setSelectedReport(null);
+    } catch (error) {
+      console.error('Failed to submit report:', error);
+      setError(error.response?.data?.detail || 'Failed to submit report');
+    } finally {
+      setLoading(false);
+    }
+  };
     setLoading(true);
     try {
       await axios.post(`${API}/reports`, {
