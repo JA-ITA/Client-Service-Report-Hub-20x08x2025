@@ -445,6 +445,16 @@ const Dashboard = () => {
     }
   };
 
+  const fetchUserReports = async () => {
+    try {
+      const response = await axios.get(`${API}/reports`);
+      setReports(response.data);
+    } catch (error) {
+      console.error('Failed to fetch user reports:', error);
+      setError('Failed to fetch reports');
+    }
+  };
+
   const fetchAnalytics = async () => {
     try {
       const response = await axios.get(`${API}/admin/analytics`);
