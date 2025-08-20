@@ -400,7 +400,7 @@ class MonthlyReportsHubAPITester:
             "Unauthorized Access",
             "GET",
             "auth/me",
-            401,  # Should be unauthorized
+            403,  # Should be forbidden (FastAPI returns 403 for missing auth)
             token=None
         )
 
