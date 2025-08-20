@@ -383,8 +383,11 @@ const Dashboard = () => {
       fetchUsers();
       fetchLocations();
       fetchStats();
+      fetchAnalytics();
       fetchReportTemplates();
       fetchAllReports();
+      fetchDynamicFields();
+      fetchFieldSections();
     } else {
       fetchReportTemplates();
       fetchUserReports();
