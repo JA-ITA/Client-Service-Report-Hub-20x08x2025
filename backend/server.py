@@ -52,6 +52,7 @@ class User(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     username: str
     email: EmailStr
+    password_hash: Optional[str] = None
     role: str = "USER"  # USER or ADMIN
     location_id: Optional[str] = None
     approved: bool = False
