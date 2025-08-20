@@ -289,6 +289,11 @@ async def init_database():
     await db.report_submissions.create_index([("report_period", 1)])
     await db.report_submissions.create_index([("user_id", 1), ("template_id", 1), ("report_period", 1)], unique=True)
     
+    # Enhanced Stage 3 indexes
+    await db.dynamic_fields.create_index([("section", 1)])
+    await db.dynamic_fields.create_index([("deleted", 1)])
+    await db.dynamic_fields.create_index([("created_by", 1)])
+    
     # Seed admin user
     admin_exists = await db.users.find_one({"username": "admin"})
     if not admin_exists:
@@ -316,10 +321,96 @@ async def init_database():
         await db.locations.insert_one(default_loc)
         logger.info("Default location created: Main Office")
     
-    # Create default report template
+    # Create default dynamic fields
+    admin_user = await db.users.find_one({"username": "admin"})
+    admin_id = admin_user["id"] if admin_user else str(uuid.uuid4())
+    
+    default_fields = [
+        {
+            "id": str(uuid.uuid4()),
+            "section": "Basic Information",
+            "label": "Employee Name",
+            "field_type": "text",
+            "placeholder": "Enter employee full name",
+            "help_text": "Enter the employee's full name as it appears in official records",
+            "deleted": False,
+            "created_by": admin_id,
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc)
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "section": "Basic Information",
+            "label": "Department",
+            "field_type": "dropdown",
+            "choices": ["Engineering", "Marketing", "Sales", "HR", "Finance", "Operations"],
+            "help_text": "Select the department the employee belongs to",
+            "deleted": False,
+            "created_by": admin_id,
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc)
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "section": "Performance Metrics",
+            "label": "Productivity Score",
+            "field_type": "number",
+            "placeholder": "0-100",
+            "validation": {"min": 0, "max": 100},
+            "help_text": "Rate productivity on a scale of 0-100",
+            "deleted": False,
+            "created_by": admin_id,
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc)
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "section": "Performance Metrics",
+            "label": "Key Accomplishments",
+            "field_type": "textarea",
+            "placeholder": "List key accomplishments for the month...",
+            "help_text": "Provide detailed description of major accomplishments",
+            "deleted": False,
+            "created_by": admin_id,
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc)
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "section": "Project Details",
+            "label": "Project Status",
+            "field_type": "dropdown",
+            "choices": ["Not Started", "In Progress", "On Hold", "Completed", "Cancelled"],
+            "help_text": "Select the current status of the main project",
+            "deleted": False,
+            "created_by": admin_id,
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc)
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "section": "Time Management",
+            "label": "Hours Worked",
+            "field_type": "number",
+            "placeholder": "Enter total hours",
+            "validation": {"min": 0, "max": 744},  # Max hours in a month
+            "help_text": "Total hours worked during the reporting period",
+            "deleted": False,
+            "created_by": admin_id,
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc)
+        }
+    ]
+    
+    for field_data in default_fields:
+        existing_field = await db.dynamic_fields.find_one({"label": field_data["label"], "section": field_data["section"]})
+        if not existing_field:
+            await db.dynamic_fields.insert_one(field_data)
+            logger.info(f"Created dynamic field: {field_data['label']} in {field_data['section']}")
+    
+    # Create default report template (keep existing logic)
     default_template = await db.report_templates.find_one({"name": "Monthly Progress Report"})
     if not default_template:
-        admin_user = await db.users.find_one({"username": "admin"})
         default_template = {
             "id": str(uuid.uuid4()),
             "name": "Monthly Progress Report",
@@ -372,7 +463,7 @@ async def init_database():
                 }
             ],
             "active": True,
-            "created_by": admin_user["id"] if admin_user else str(uuid.uuid4()),
+            "created_by": admin_id,
             "created_at": datetime.now(timezone.utc),
             "updated_at": datetime.now(timezone.utc)
         }
