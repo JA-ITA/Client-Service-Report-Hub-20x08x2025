@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/ui/select";
 import { Label } from "./components/ui/label";
 import { Separator } from "./components/ui/separator";
-import { Users, MapPin, Shield, CheckCircle, XCircle, Plus, FileText, Calendar, Save, Send, Edit, Trash2, Eye, BarChart3 } from "lucide-react";
+import { Users, MapPin, Shield, CheckCircle, XCircle, Plus, FileText, Calendar, Save, Send, Edit, Trash2, Eye, BarChart3, Settings, Database, RefreshCw, Filter, Search } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
