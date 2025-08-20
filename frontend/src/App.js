@@ -352,9 +352,15 @@ const Dashboard = () => {
   const [users, setUsers] = useState([]);
   const [locations, setLocations] = useState([]);
   const [stats, setStats] = useState({});
+  const [reportTemplates, setReportTemplates] = useState([]);
+  const [reports, setReports] = useState([]);
   const [editingLocation, setEditingLocation] = useState(null);
   const [newLocationName, setNewLocationName] = useState('');
   const [showAddLocation, setShowAddLocation] = useState(false);
+  const [showTemplateBuilder, setShowTemplateBuilder] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState(null);
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [reportFormData, setReportFormData] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -364,9 +370,15 @@ const Dashboard = () => {
       fetchUsers();
       fetchLocations();
       fetchStats();
+      fetchReportTemplates();
+      fetchAllReports();
+    } else {
+      fetchReportTemplates();
+      fetchUserReports();
     }
   }, [isAdmin]);
 
+  // Fetch functions
   const fetchUsers = async () => {
     try {
       const response = await axios.get(`${API}/admin/users`);
@@ -396,11 +408,43 @@ const Dashboard = () => {
     }
   };
 
+  const fetchReportTemplates = async () => {
+    try {
+      const endpoint = isAdmin ? '/admin/report-templates' : '/report-templates';
+      const response = await axios.get(`${API}${endpoint}`);
+      setReportTemplates(response.data);
+    } catch (error) {
+      console.error('Failed to fetch report templates:', error);
+      setError('Failed to fetch report templates');
+    }
+  };
+
+  const fetchAllReports = async () => {
+    try {
+      const response = await axios.get(`${API}/admin/reports`);
+      setReports(response.data);
+    } catch (error) {
+      console.error('Failed to fetch all reports:', error);
+      setError('Failed to fetch reports');
+    }
+  };
+
+  const fetchUserReports = async () => {
+    try {
+      const response = await axios.get(`${API}/reports`);
+      setReports(response.data);
+    } catch (error) {
+      console.error('Failed to fetch user reports:', error);
+      setError('Failed to fetch reports');
+    }
+  };
+
+  // User and Location management functions (existing code stays)
   const approveUser = async (userId) => {
     try {
       await axios.put(`${API}/admin/users/${userId}/approve`);
-      fetchUsers(); // Refresh the list
-      fetchStats(); // Update stats
+      fetchUsers();
+      fetchStats();
     } catch (error) {
       console.error('Failed to approve user:', error);
       setError('Failed to approve user');
@@ -410,8 +454,8 @@ const Dashboard = () => {
   const updateUserRole = async (userId, newRole) => {
     try {
       await axios.put(`${API}/admin/users/${userId}/role`, { role: newRole });
-      fetchUsers(); // Refresh the list
-      fetchStats(); // Update stats
+      fetchUsers();
+      fetchStats();
     } catch (error) {
       console.error('Failed to update user role:', error);
       setError('Failed to update user role');
@@ -422,8 +466,8 @@ const Dashboard = () => {
     if (window.confirm(`Are you sure you want to delete user "${username}"? This action cannot be undone.`)) {
       try {
         await axios.delete(`${API}/admin/users/${userId}`);
-        fetchUsers(); // Refresh the list
-        fetchStats(); // Update stats
+        fetchUsers();
+        fetchStats();
       } catch (error) {
         console.error('Failed to delete user:', error);
         setError(error.response?.data?.detail || 'Failed to delete user');
@@ -476,6 +520,38 @@ const Dashboard = () => {
     }
   };
 
+  // Report management functions
+  const submitReport = async (templateId, reportPeriod, data, status = 'draft') => {
+    setLoading(true);
+    try {
+      await axios.post(`${API}/reports`, {
+        template_id: templateId,
+        report_period: reportPeriod,
+        data: data,
+        status: status
+      });
+      
+      if (isAdmin) {
+        fetchAllReports();
+      } else {
+        fetchUserReports();
+      }
+      
+      setReportFormData({});
+      setSelectedReport(null);
+    } catch (error) {
+      console.error('Failed to submit report:', error);
+      setError(error.response?.data?.detail || 'Failed to submit report');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getCurrentMonth = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  };
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -490,6 +566,116 @@ const Dashboard = () => {
             <p className={`text-3xl font-bold text-${color}-600`}>{value}</p>
           </div>
           <Icon className={`h-8 w-8 text-${color}-500 opacity-75`} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const ReportForm = ({ template, existingReport = null }) => (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center space-x-2">
+          <FileText className="h-5 w-5" />
+          <span>{template.name}</span>
+        </CardTitle>
+        <CardDescription>{template.description}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {template.fields.sort((a, b) => a.order - b.order).map((field) => (
+            <div key={field.id} className="space-y-2">
+              <Label htmlFor={field.name}>
+                {field.label}
+                {field.required && <span className="text-red-500 ml-1">*</span>}
+              </Label>
+              
+              {field.field_type === 'text' && (
+                <Input
+                  id={field.name}
+                  placeholder={field.placeholder}
+                  value={reportFormData[field.name] || existingReport?.data[field.name] || ''}
+                  onChange={(e) => setReportFormData({
+                    ...reportFormData,
+                    [field.name]: e.target.value
+                  })}
+                  required={field.required}
+                />
+              )}
+              
+              {field.field_type === 'textarea' && (
+                <textarea
+                  id={field.name}
+                  placeholder={field.placeholder}
+                  className="w-full p-3 border border-slate-200 rounded-md resize-none h-24 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  value={reportFormData[field.name] || existingReport?.data[field.name] || ''}
+                  onChange={(e) => setReportFormData({
+                    ...reportFormData,
+                    [field.name]: e.target.value
+                  })}
+                  required={field.required}
+                />
+              )}
+              
+              {field.field_type === 'number' && (
+                <Input
+                  id={field.name}
+                  type="number"
+                  placeholder={field.placeholder}
+                  value={reportFormData[field.name] || existingReport?.data[field.name] || ''}
+                  onChange={(e) => setReportFormData({
+                    ...reportFormData,
+                    [field.name]: e.target.value
+                  })}
+                  required={field.required}
+                />
+              )}
+              
+              {field.field_type === 'dropdown' && (
+                <Select 
+                  value={reportFormData[field.name] || existingReport?.data[field.name] || ''} 
+                  onValueChange={(value) => setReportFormData({
+                    ...reportFormData,
+                    [field.name]: value
+                  })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select an option" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {field.options?.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          ))}
+          
+          <div className="flex space-x-4 pt-4">
+            <Button 
+              onClick={() => submitReport(template.id, getCurrentMonth(), reportFormData, 'draft')}
+              variant="outline"
+              disabled={loading}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              Save Draft
+            </Button>
+            <Button 
+              onClick={() => submitReport(template.id, getCurrentMonth(), reportFormData, 'submitted')}
+              disabled={loading}
+            >
+              <Send className="h-4 w-4 mr-2" />
+              Submit Report
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => setSelectedReport(null)}
+            >
+              Cancel
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>
