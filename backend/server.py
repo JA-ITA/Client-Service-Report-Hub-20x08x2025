@@ -240,7 +240,7 @@ async def create_location(location_data: LocationCreate, current_user: User = De
     await db.locations.insert_one(new_location.dict())
     return new_location
 
-# Admin routes
+# Admin routes - User Management
 @api_router.get("/admin/users", response_model=List[UserResponse])
 async def get_all_users(current_user: User = Depends(get_admin_user)):
     users = await db.users.find().to_list(1000)
@@ -258,6 +258,116 @@ async def approve_user(user_id: str, current_user: User = Depends(get_admin_user
             detail="User not found"
         )
     return {"message": "User approved successfully"}
+
+@api_router.put("/admin/users/{user_id}/role")
+async def update_user_role(user_id: str, role_data: dict, current_user: User = Depends(get_admin_user)):
+    if role_data.get("role") not in ["USER", "ADMIN"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid role. Must be USER or ADMIN"
+        )
+    
+    result = await db.users.update_one(
+        {"id": user_id},
+        {"$set": {"role": role_data["role"]}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    return {"message": f"User role updated to {role_data['role']} successfully"}
+
+@api_router.delete("/admin/users/{user_id}")
+async def delete_user(user_id: str, current_user: User = Depends(get_admin_user)):
+    # Prevent admin from deleting themselves
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete your own account"
+        )
+    
+    result = await db.users.delete_one({"id": user_id})
+    if result.deleted_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    return {"message": "User deleted successfully"}
+
+# Admin routes - Location Management
+@api_router.get("/admin/locations", response_model=List[Location])
+async def get_all_locations_admin(current_user: User = Depends(get_admin_user)):
+    locations = await db.locations.find().to_list(1000)
+    return [Location(**location) for location in locations]
+
+@api_router.put("/admin/locations/{location_id}")
+async def update_location(location_id: str, location_data: LocationCreate, current_user: User = Depends(get_admin_user)):
+    # Check if new name already exists (excluding current location)
+    existing_location = await db.locations.find_one({
+        "id": {"$ne": location_id},
+        "name": location_data.name
+    })
+    if existing_location:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Location name already exists"
+        )
+    
+    result = await db.locations.update_one(
+        {"id": location_id},
+        {"$set": {"name": location_data.name}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Location not found"
+        )
+    return {"message": "Location updated successfully"}
+
+@api_router.delete("/admin/locations/{location_id}")
+async def delete_location(location_id: str, current_user: User = Depends(get_admin_user)):
+    # Check if location is in use by any users
+    users_with_location = await db.users.find_one({"location_id": location_id})
+    if users_with_location:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="Cannot delete location. It is assigned to users."
+        )
+    
+    result = await db.locations.delete_one({"id": location_id})
+    if result.deleted_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Location not found"
+        )
+    return {"message": "Location deleted successfully"}
+
+# Admin routes - System Statistics  
+@api_router.get("/admin/stats")
+async def get_system_stats(current_user: User = Depends(get_admin_user)):
+    total_users = await db.users.count_documents({})
+    approved_users = await db.users.count_documents({"approved": True})
+    pending_users = await db.users.count_documents({"approved": False})
+    total_locations = await db.locations.count_documents({})
+    admin_users = await db.users.count_documents({"role": "ADMIN"})
+    regular_users = await db.users.count_documents({"role": "USER"})
+    
+    # Recent registrations (last 7 days)
+    seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    recent_registrations = await db.users.count_documents({
+        "created_at": {"$gte": seven_days_ago}
+    })
+    
+    return {
+        "total_users": total_users,
+        "approved_users": approved_users,
+        "pending_users": pending_users,
+        "total_locations": total_locations,
+        "admin_users": admin_users,
+        "regular_users": regular_users,
+        "recent_registrations": recent_registrations
+    }
 
 # Basic routes
 @api_router.get("/")
