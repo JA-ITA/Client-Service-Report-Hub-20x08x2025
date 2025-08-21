@@ -748,7 +748,7 @@ class Stage3EnhancedAPITester:
             "POST",
             "admin/reports/bulk-actions",
             403,
-            data={"action": "approve", "report_ids": []},
+            params={"action": "approve", "report_ids": []},
             token=self.user_token
         )
 
