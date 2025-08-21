@@ -1273,12 +1273,6 @@ class BulkActionRequest(BaseModel):
     action: str
     report_ids: List[str]
 
-class TemplateFromFieldsRequest(BaseModel):
-    template_name: str
-    template_description: str
-    field_ids: List[str]
-    template_category: str = "General"
-
 @api_router.post("/admin/reports/bulk-actions")
 async def bulk_report_actions(
     request: BulkActionRequest,
