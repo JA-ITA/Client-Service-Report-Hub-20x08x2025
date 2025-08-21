@@ -798,15 +798,12 @@ async def get_system_stats(current_user: User = Depends(get_admin_user)):
 # Enhanced Report Template Management with Dynamic Fields
 @api_router.post("/admin/report-templates/from-fields", response_model=ReportTemplate)
 async def create_template_from_dynamic_fields(
-    template_name: str,
-    template_description: str,
-    field_ids: List[str],
-    template_category: str = "General",
+    request: TemplateFromFieldsRequest,
     current_user: User = Depends(get_admin_user)
 ):
     """Create a report template from selected dynamic fields"""
     # Check if template name already exists
-    existing_template = await db.report_templates.find_one({"name": template_name})
+    existing_template = await db.report_templates.find_one({"name": request.template_name})
     if existing_template:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -815,11 +812,11 @@ async def create_template_from_dynamic_fields(
     
     # Fetch the selected dynamic fields
     selected_fields = await db.dynamic_fields.find({
-        "id": {"$in": field_ids},
+        "id": {"$in": request.field_ids},
         "deleted": {"$ne": True}
     }).to_list(1000)
     
-    if len(selected_fields) != len(field_ids):
+    if len(selected_fields) != len(request.field_ids):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Some selected fields were not found or are deleted"
@@ -843,8 +840,8 @@ async def create_template_from_dynamic_fields(
     
     # Create the new template
     new_template = ReportTemplate(
-        name=template_name,
-        description=template_description,
+        name=request.template_name,
+        description=request.template_description,
         fields=report_fields,
         created_by=current_user.id
     )
