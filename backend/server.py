@@ -1272,58 +1272,61 @@ async def search_reports(
         "total_pages": (total_count + limit - 1) // limit
     }
 
+class BulkActionRequest(BaseModel):
+    action: str
+    report_ids: List[str]
+
 @api_router.post("/admin/reports/bulk-actions")
 async def bulk_report_actions(
-    action: str,
-    report_ids: List[str],
+    request: BulkActionRequest,
     current_user: User = Depends(get_admin_user)
 ):
     """Perform bulk actions on reports"""
     valid_actions = ["delete", "approve", "reject", "mark_reviewed"]
     
-    if action not in valid_actions:
+    if request.action not in valid_actions:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid action. Must be one of: {', '.join(valid_actions)}"
         )
     
-    if not report_ids:
+    if not request.report_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No report IDs provided"
         )
     
     # Check that all reports exist
-    existing_reports = await db.report_submissions.find({"id": {"$in": report_ids}}).to_list(1000)
-    if len(existing_reports) != len(report_ids):
+    existing_reports = await db.report_submissions.find({"id": {"$in": request.report_ids}}).to_list(1000)
+    if len(existing_reports) != len(request.report_ids):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Some report IDs were not found"
         )
     
-    if action == "delete":
-        result = await db.report_submissions.delete_many({"id": {"$in": report_ids}})
+    if request.action == "delete":
+        result = await db.report_submissions.delete_many({"id": {"$in": request.report_ids}})
         return {"message": f"Successfully deleted {result.deleted_count} reports"}
     
-    elif action in ["approve", "reject", "mark_reviewed"]:
+    elif request.action in ["approve", "reject", "mark_reviewed"]:
         update_data = {
             "reviewed_at": datetime.now(timezone.utc),
             "reviewed_by": current_user.id
         }
         
-        if action == "approve":
+        if request.action == "approve":
             update_data["status"] = "approved"
-        elif action == "reject":
+        elif request.action == "reject":
             update_data["status"] = "rejected"
-        elif action == "mark_reviewed":
+        elif request.action == "mark_reviewed":
             update_data["status"] = "reviewed"
         
         result = await db.report_submissions.update_many(
-            {"id": {"$in": report_ids}},
+            {"id": {"$in": request.report_ids}},
             {"$set": update_data}
         )
         
-        return {"message": f"Successfully {action}ed {result.modified_count} reports"}
+        return {"message": f"Successfully {request.action}ed {result.modified_count} reports"}
 
 @api_router.get("/admin/reports/export")
 async def export_reports(
