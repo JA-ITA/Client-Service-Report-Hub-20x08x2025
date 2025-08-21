@@ -231,6 +231,12 @@ class ReportSubmissionResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+class TemplateFromFieldsRequest(BaseModel):
+    template_name: str
+    template_description: str
+    field_ids: List[str]
+    template_category: str = "General"
+
 # Utility functions
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
