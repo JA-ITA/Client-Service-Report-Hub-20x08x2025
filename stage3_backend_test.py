@@ -581,16 +581,25 @@ class Stage3EnhancedAPITester:
             print("❌ No test report IDs available for bulk actions")
             return False
             
+        params = {
+            "action": "approve"
+        }
+        # Add report_ids as multiple parameters
+        for report_id in self.test_report_ids[:1]:  # Use first report
+            if "report_ids" not in params:
+                params["report_ids"] = []
+            if isinstance(params.get("report_ids"), list):
+                params["report_ids"].append(report_id)
+            else:
+                params["report_ids"] = [params["report_ids"], report_id]
+            
         return self.run_test(
             "Bulk Approve Reports",
             "POST",
             "admin/reports/bulk-actions",
             200,
-            data={
-                "action": "approve",
-                "report_ids": self.test_report_ids[:1]  # Use first report
-            },
-            token=self.admin_token
+            token=self.admin_token,
+            params=params
         )
 
     def test_bulk_report_actions_reject(self):
@@ -599,16 +608,25 @@ class Stage3EnhancedAPITester:
             print("❌ Not enough test report IDs available for bulk reject")
             return False
             
+        params = {
+            "action": "reject"
+        }
+        # Add report_ids as multiple parameters
+        for report_id in self.test_report_ids[1:2]:  # Use second report
+            if "report_ids" not in params:
+                params["report_ids"] = []
+            if isinstance(params.get("report_ids"), list):
+                params["report_ids"].append(report_id)
+            else:
+                params["report_ids"] = [params["report_ids"], report_id]
+            
         return self.run_test(
             "Bulk Reject Reports",
             "POST",
             "admin/reports/bulk-actions",
             200,
-            data={
-                "action": "reject",
-                "report_ids": self.test_report_ids[1:2]  # Use second report
-            },
-            token=self.admin_token
+            token=self.admin_token,
+            params=params
         )
 
     def test_bulk_report_actions_mark_reviewed(self):
@@ -617,16 +635,25 @@ class Stage3EnhancedAPITester:
             print("❌ No test report IDs available for bulk mark reviewed")
             return False
             
+        params = {
+            "action": "mark_reviewed"
+        }
+        # Add report_ids as multiple parameters
+        for report_id in self.test_report_ids:
+            if "report_ids" not in params:
+                params["report_ids"] = []
+            if isinstance(params.get("report_ids"), list):
+                params["report_ids"].append(report_id)
+            else:
+                params["report_ids"] = [params["report_ids"], report_id]
+            
         return self.run_test(
             "Bulk Mark Reviewed Reports",
             "POST",
             "admin/reports/bulk-actions",
             200,
-            data={
-                "action": "mark_reviewed",
-                "report_ids": self.test_report_ids
-            },
-            token=self.admin_token
+            token=self.admin_token,
+            params=params
         )
 
     def test_bulk_report_actions_invalid(self):
@@ -635,16 +662,25 @@ class Stage3EnhancedAPITester:
             print("❌ No test report IDs available for invalid bulk action test")
             return False
             
+        params = {
+            "action": "invalid_action"
+        }
+        # Add report_ids as multiple parameters
+        for report_id in self.test_report_ids[:1]:
+            if "report_ids" not in params:
+                params["report_ids"] = []
+            if isinstance(params.get("report_ids"), list):
+                params["report_ids"].append(report_id)
+            else:
+                params["report_ids"] = [params["report_ids"], report_id]
+            
         return self.run_test(
             "Bulk Invalid Action",
             "POST",
             "admin/reports/bulk-actions",
             400,
-            data={
-                "action": "invalid_action",
-                "report_ids": self.test_report_ids[:1]
-            },
-            token=self.admin_token
+            token=self.admin_token,
+            params=params
         )
 
     def test_export_reports_csv(self):
