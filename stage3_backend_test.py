@@ -31,6 +31,17 @@ class Stage3EnhancedAPITester:
             print(f"   Params: {params}")
         
         try:
+            # Handle list parameters for query strings
+            if params:
+                processed_params = []
+                for key, value in params.items():
+                    if isinstance(value, list):
+                        for item in value:
+                            processed_params.append((key, item))
+                    else:
+                        processed_params.append((key, value))
+                params = processed_params
+            
             if method == 'GET':
                 response = requests.get(url, headers=headers, params=params, timeout=10)
             elif method == 'POST':
