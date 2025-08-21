@@ -402,7 +402,7 @@ def main():
         # Setup
         ("Admin Login", tester.test_admin_login),
         ("Get Dynamic Fields", tester.test_get_dynamic_fields),
-        ("Get Reports for Bulk Action", tester.test_get_reports_for_bulk_action),
+        ("Create User and Reports", tester.test_create_user_and_reports),
         
         # Template from Fields Tests
         ("Template from Fields - Success", tester.test_template_from_fields_success),
