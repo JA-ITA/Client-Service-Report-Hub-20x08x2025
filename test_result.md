@@ -257,7 +257,7 @@ backend:
 
   - task: "Bulk Report Actions API"
     implemented: true
-    working: false
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 1
     priority: "medium"
@@ -269,6 +269,9 @@ backend:
         - working: false
           agent: "testing"
           comment: "FAILED: POST /admin/reports/bulk-actions endpoint has parameter handling issues. FastAPI expects request body but function signature suggests query parameters. API returns 422 'Field required' error for body parameter. Functionality appears implemented but has parameter binding issue."
+        - working: true
+          agent: "testing"
+          comment: "PASSED: POST /admin/reports/bulk-actions endpoint now working correctly with BulkActionRequest model. Successfully tested all actions (mark_reviewed, approve, reject) with proper JSON request body containing action and report_ids. Validation errors work correctly for invalid actions, empty report_ids, and non-existent report IDs. Parameter binding issue has been resolved."
 
   - task: "Template Creation from Dynamic Fields"
     implemented: true
@@ -276,7 +279,7 @@ backend:
     file: "/app/backend/server.py"
     stuck_count: 1
     priority: "medium"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         - working: "NA"
           agent: "main"
@@ -287,6 +290,9 @@ backend:
         - working: true
           agent: "main"
           comment: "FIXED: Added TemplateFromFieldsRequest model definition and updated function signature to use request body parameter instead of query parameters. Function now properly accepts JSON request body with template_name, template_description, field_ids, and template_category."
+        - working: true
+          agent: "testing"
+          comment: "PASSED: POST /admin/report-templates/from-fields endpoint working perfectly with TemplateFromFieldsRequest model. Successfully tested template creation from dynamic fields with proper JSON request body. Validation works correctly for duplicate template names and proper field ID validation. Parameter binding issue has been completely resolved."
 
 frontend:
   - task: "Authentication Flow"
