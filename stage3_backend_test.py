@@ -585,16 +585,9 @@ class Stage3EnhancedAPITester:
             return False
             
         params = {
-            "action": "approve"
+            "action": "approve",
+            "report_ids": self.test_report_ids[:1]  # Use first report
         }
-        # Add report_ids as multiple parameters
-        for report_id in self.test_report_ids[:1]:  # Use first report
-            if "report_ids" not in params:
-                params["report_ids"] = []
-            if isinstance(params.get("report_ids"), list):
-                params["report_ids"].append(report_id)
-            else:
-                params["report_ids"] = [params["report_ids"], report_id]
             
         return self.run_test(
             "Bulk Approve Reports",
@@ -612,16 +605,9 @@ class Stage3EnhancedAPITester:
             return False
             
         params = {
-            "action": "reject"
+            "action": "reject",
+            "report_ids": self.test_report_ids[1:2]  # Use second report
         }
-        # Add report_ids as multiple parameters
-        for report_id in self.test_report_ids[1:2]:  # Use second report
-            if "report_ids" not in params:
-                params["report_ids"] = []
-            if isinstance(params.get("report_ids"), list):
-                params["report_ids"].append(report_id)
-            else:
-                params["report_ids"] = [params["report_ids"], report_id]
             
         return self.run_test(
             "Bulk Reject Reports",
@@ -639,16 +625,9 @@ class Stage3EnhancedAPITester:
             return False
             
         params = {
-            "action": "mark_reviewed"
+            "action": "mark_reviewed",
+            "report_ids": self.test_report_ids
         }
-        # Add report_ids as multiple parameters
-        for report_id in self.test_report_ids:
-            if "report_ids" not in params:
-                params["report_ids"] = []
-            if isinstance(params.get("report_ids"), list):
-                params["report_ids"].append(report_id)
-            else:
-                params["report_ids"] = [params["report_ids"], report_id]
             
         return self.run_test(
             "Bulk Mark Reviewed Reports",
@@ -666,16 +645,9 @@ class Stage3EnhancedAPITester:
             return False
             
         params = {
-            "action": "invalid_action"
+            "action": "invalid_action",
+            "report_ids": self.test_report_ids[:1]
         }
-        # Add report_ids as multiple parameters
-        for report_id in self.test_report_ids[:1]:
-            if "report_ids" not in params:
-                params["report_ids"] = []
-            if isinstance(params.get("report_ids"), list):
-                params["report_ids"].append(report_id)
-            else:
-                params["report_ids"] = [params["report_ids"], report_id]
             
         return self.run_test(
             "Bulk Invalid Action",
