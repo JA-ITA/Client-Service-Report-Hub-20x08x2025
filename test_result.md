@@ -272,11 +272,11 @@ backend:
 
   - task: "Template Creation from Dynamic Fields"
     implemented: true
-    working: false
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 1
     priority: "medium"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
         - working: "NA"
           agent: "main"
@@ -284,6 +284,9 @@ backend:
         - working: false
           agent: "testing"
           comment: "FAILED: POST /admin/report-templates/from-fields endpoint has parameter handling issues. FastAPI expects request body but function signature suggests query parameters. API returns 422 'Field required' error for body parameter. Functionality appears implemented but has parameter binding issue."
+        - working: true
+          agent: "main"
+          comment: "FIXED: Added TemplateFromFieldsRequest model definition and updated function signature to use request body parameter instead of query parameters. Function now properly accepts JSON request body with template_name, template_description, field_ids, and template_category."
 
 frontend:
   - task: "Authentication Flow"
