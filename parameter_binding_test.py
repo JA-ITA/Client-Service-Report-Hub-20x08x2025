@@ -221,8 +221,9 @@ class ParameterBindingTester:
             print("❌ No field IDs available for template creation")
             return False
 
+        timestamp = datetime.now().strftime('%H%M%S')
         template_data = {
-            "template_name": "Test Template from Fields",
+            "template_name": f"Test Template from Fields {timestamp}",
             "template_description": "A test template created from dynamic fields",
             "field_ids": self.field_ids,
             "template_category": "Test"
