@@ -93,21 +93,127 @@ class ParameterBindingTester:
             return True
         return success
 
-    def test_get_reports_for_bulk_action(self):
-        """Get existing reports to use their IDs in bulk actions"""
+    def test_create_user_and_reports(self):
+        """Create a test user and reports for bulk actions"""
+        # First register a test user
+        timestamp = datetime.now().strftime('%H%M%S')
+        test_user_data = {
+            "username": f"testuser_{timestamp}",
+            "email": f"testuser_{timestamp}@example.com",
+            "password": "TestPass123!",
+            "location_id": None
+        }
+        
         success, response = self.run_test(
-            "Get Reports for Bulk Action",
-            "GET",
-            "admin/reports",
+            "Register Test User",
+            "POST",
+            "auth/register",
+            200,
+            data=test_user_data
+        )
+        if not success:
+            return False
+            
+        test_user_id = response['id']
+        
+        # Approve the user
+        success, response = self.run_test(
+            "Approve Test User",
+            "PUT",
+            f"admin/users/{test_user_id}/approve",
             200,
             token=self.admin_token
         )
-        if success and isinstance(response, list) and len(response) > 0:
-            # Get first few report IDs
-            self.report_ids = [report['id'] for report in response[:2]]
-            print(f"   Found {len(self.report_ids)} report IDs: {self.report_ids}")
-            return True
-        return success
+        if not success:
+            return False
+        
+        # Login as the test user
+        success, response = self.run_test(
+            "Test User Login",
+            "POST",
+            "auth/login",
+            200,
+            data={"username": test_user_data["username"], "password": test_user_data["password"]}
+        )
+        if not success:
+            return False
+            
+        user_token = response['access_token']
+        
+        # Get available templates
+        success, response = self.run_test(
+            "Get Templates for Reports",
+            "GET",
+            "report-templates",
+            200,
+            token=user_token
+        )
+        if not success or not response:
+            return False
+            
+        template_id = response[0]['id']
+        
+        # Create two test reports
+        current_month = datetime.now().strftime('%Y-%m')
+        next_month = datetime.now().replace(day=1)
+        if next_month.month == 12:
+            next_month = next_month.replace(year=next_month.year + 1, month=1)
+        else:
+            next_month = next_month.replace(month=next_month.month + 1)
+        next_month_str = next_month.strftime('%Y-%m')
+        
+        # Create first report
+        report_data_1 = {
+            "template_id": template_id,
+            "report_period": current_month,
+            "status": "submitted",
+            "data": {
+                "key_achievements": "Test achievements for bulk action testing",
+                "challenges": "Test challenges",
+                "goals_next_month": "Test goals",
+                "satisfaction_rating": "Satisfied",
+                "hours_worked": 160
+            }
+        }
+        
+        success, response = self.run_test(
+            "Create Test Report 1",
+            "POST",
+            "reports",
+            200,
+            data=report_data_1,
+            token=user_token
+        )
+        if success:
+            self.report_ids.append(response['id'])
+        
+        # Create second report
+        report_data_2 = {
+            "template_id": template_id,
+            "report_period": next_month_str,
+            "status": "submitted",
+            "data": {
+                "key_achievements": "Second test achievements for bulk action testing",
+                "challenges": "Second test challenges",
+                "goals_next_month": "Second test goals",
+                "satisfaction_rating": "Very Satisfied",
+                "hours_worked": 170
+            }
+        }
+        
+        success, response = self.run_test(
+            "Create Test Report 2",
+            "POST",
+            "reports",
+            200,
+            data=report_data_2,
+            token=user_token
+        )
+        if success:
+            self.report_ids.append(response['id'])
+        
+        print(f"   Created {len(self.report_ids)} reports for bulk testing: {self.report_ids}")
+        return len(self.report_ids) >= 2
 
     def test_template_from_fields_success(self):
         """Test POST /admin/report-templates/from-fields with valid data"""
