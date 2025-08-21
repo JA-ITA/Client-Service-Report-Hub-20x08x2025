@@ -396,20 +396,12 @@ class Stage3EnhancedAPITester:
         # Use first 3 created fields
         field_ids = self.created_field_ids[:3]
         
-        # For FastAPI, List[str] parameters need to be passed multiple times
         params = {
             "template_name": "Stage 3 Test Template",
             "template_description": "Template created from dynamic fields for testing",
-            "template_category": "Testing"
+            "template_category": "Testing",
+            "field_ids": field_ids  # This will be processed as multiple query params
         }
-        # Add field_ids as multiple parameters
-        for field_id in field_ids:
-            if "field_ids" not in params:
-                params["field_ids"] = []
-            if isinstance(params.get("field_ids"), list):
-                params["field_ids"].append(field_id)
-            else:
-                params["field_ids"] = [params["field_ids"], field_id]
         
         success, response = self.run_test(
             "Create Template from Dynamic Fields",
