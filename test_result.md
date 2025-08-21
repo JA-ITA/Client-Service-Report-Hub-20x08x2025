@@ -368,9 +368,7 @@ test_plan:
     - "Advanced Report Management - MOSTLY COMPLETED"
     - "Enhanced Template Builder - MOSTLY COMPLETED"
     - "Enhanced Analytics - COMPLETED"
-  stuck_tasks:
-    - "Bulk Report Actions API - Parameter binding issue"
-    - "Template Creation from Dynamic Fields - Parameter binding issue"
+  stuck_tasks: []
   test_all: true
   test_priority: "high_first"
 
